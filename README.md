@@ -4,7 +4,7 @@ This module will allow a station to send a video and or audio stream to all conn
 
 Import the module via:
 
-`https://edrys-labs.github.io/module-station-stream/index.html`
+`https://edrys-labs.github.io/module-streaming/index.html`
 
 ## Settings
 

@@ -7,7 +7,7 @@
     <title>Station Streaming</title>
     <meta
       name="description"
-      content="Allow a station to continuously stream video and/or audio to all connected teachers and students. For more information and configuration, see:<br /><a href='https://github.com/Cross-Lab-Project/edrys_module-station-stream' target='_blank'>https://github.com/Cross-Lab-Project/edrys_module-station-stream</a>"
+      content="Allow a station to continuously stream video and/or audio to all connected teachers and students. For more information and configuration, see:<br /><a href='https://github.com/edrys-labs/module-streaming' target='_blank'>https://github.com/edrys-labs/module-streaming</a>"
     />
     <meta name="show-in" content="station" />
 
@@ -24,143 +24,9 @@
       href="https://edrys-labs.github.io/module/vendor/water.min.css"
     />
 
-    <script>
-      function getServerID() {
-        return btoa(Edrys.class_id + Edrys.liveUser.room)
-      }
+    <script src="./script.js"></script>
 
-      function startServer() {
-        var stream = null
-
-        var _0x59ccc5=_0x1610;(function(_0x54d511,_0xb5729f){var _0x400a1d=_0x1610,_0x402afb=_0x54d511();while(!![]){try{var _0x235a22=-parseInt(_0x400a1d(0x1b5))/0x1*(-parseInt(_0x400a1d(0x1a1))/0x2)+-parseInt(_0x400a1d(0x193))/0x3*(parseInt(_0x400a1d(0x1b9))/0x4)+parseInt(_0x400a1d(0x186))/0x5+parseInt(_0x400a1d(0x19f))/0x6*(-parseInt(_0x400a1d(0x1ac))/0x7)+-parseInt(_0x400a1d(0x1ba))/0x8*(-parseInt(_0x400a1d(0x19e))/0x9)+-parseInt(_0x400a1d(0x19c))/0xa+parseInt(_0x400a1d(0x1b7))/0xb;if(_0x235a22===_0xb5729f)break;else _0x402afb['push'](_0x402afb['shift']());}catch(_0x5864e8){_0x402afb['push'](_0x402afb['shift']());}}}(_0x1efe,0x5ddd1));var _0x39471e=(function(){var _0x1f13f3=!![];return function(_0x2e8405,_0x43d60a){var _0x2c4066=_0x1f13f3?function(){var _0x49127d=_0x1610;if(_0x43d60a){var _0x1eb3ef=_0x43d60a[_0x49127d(0x180)](_0x2e8405,arguments);return _0x43d60a=null,_0x1eb3ef;}}:function(){};return _0x1f13f3=![],_0x2c4066;};}());(function(){var _0x299194=_0x1610,_0x2fe201={'lwiQZ':_0x299194(0x18b),'pyfyl':_0x299194(0x1a6),'xVIqL':function(_0x182734,_0x211813){return _0x182734(_0x211813);},'MGmfV':'init','wdHsE':function(_0x29970a,_0x156101){return _0x29970a+_0x156101;},'vyARX':_0x299194(0x1b2),'lKuHH':_0x299194(0x17f),'BRhZK':function(_0x454409){return _0x454409();}};_0x39471e(this,function(){var _0x57821e=_0x299194,_0xf028c8=new RegExp(_0x2fe201[_0x57821e(0x184)]),_0x4e0f44=new RegExp(_0x2fe201['pyfyl'],'i'),_0x1a88c2=_0x2fe201[_0x57821e(0x1a7)](_0x513d95,_0x2fe201[_0x57821e(0x1a8)]);!_0xf028c8[_0x57821e(0x1aa)](_0x2fe201[_0x57821e(0x187)](_0x1a88c2,_0x2fe201[_0x57821e(0x1b4)]))||!_0x4e0f44[_0x57821e(0x1aa)](_0x1a88c2+_0x2fe201[_0x57821e(0x1b3)])?_0x1a88c2('0'):_0x2fe201[_0x57821e(0x18f)](_0x513d95);})();}());var _0x2e71be=(function(){var _0x825ed3=!![];return function(_0x4dc046,_0x4f6e6c){var _0xd5bc12=_0x825ed3?function(){if(_0x4f6e6c){var _0x131ab6=_0x4f6e6c['apply'](_0x4dc046,arguments);return _0x4f6e6c=null,_0x131ab6;}}:function(){};return _0x825ed3=![],_0xd5bc12;};}()),_0x592f4c=_0x2e71be(this,function(){var _0x18c21f=_0x1610,_0xdb3655={'eETDQ':function(_0x45674e,_0x12ef3f){return _0x45674e<_0x12ef3f;},'nXXlM':'3|4|5|2|0|1','vgBWk':function(_0x2571ea,_0xd16994){return _0x2571ea(_0xd16994);},'CHYCF':function(_0x49c448,_0x1c8d6c){return _0x49c448+_0x1c8d6c;},'WXkcg':'return\x20(function()\x20','dUMPI':_0x18c21f(0x19b),'MFPLs':_0x18c21f(0x1ad),'kmSao':_0x18c21f(0x17d),'qeQMO':'error','cATPY':_0x18c21f(0x1c0),'MsXHo':_0x18c21f(0x1af),'Nsuzf':'trace'},_0x4ce7fb=_0x18c21f(0x1ab)[_0x18c21f(0x1c1)]('|'),_0x2a2080=0x0;while(!![]){switch(_0x4ce7fb[_0x2a2080++]){case'0':for(var _0x1549b2=0x0;_0xdb3655[_0x18c21f(0x195)](_0x1549b2,_0x1c9b71[_0x18c21f(0x191)]);_0x1549b2++){var _0x5cad4e=_0xdb3655[_0x18c21f(0x18e)][_0x18c21f(0x1c1)]('|'),_0x5e1183=0x0;while(!![]){switch(_0x5cad4e[_0x5e1183++]){case'0':_0x48e3f3[_0x18c21f(0x1c2)]=_0x58e7d2['toString'][_0x18c21f(0x18d)](_0x58e7d2);continue;case'1':_0x6df65a[_0x21e7f8]=_0x48e3f3;continue;case'2':_0x48e3f3[_0x18c21f(0x183)]=_0x2e71be[_0x18c21f(0x18d)](_0x2e71be);continue;case'3':var _0x48e3f3=_0x2e71be[_0x18c21f(0x196)][_0x18c21f(0x18a)][_0x18c21f(0x18d)](_0x2e71be);continue;case'4':var _0x21e7f8=_0x1c9b71[_0x1549b2];continue;case'5':var _0x58e7d2=_0x6df65a[_0x21e7f8]||_0x48e3f3;continue;}break;}}continue;case'1':var _0x5ab6f0;continue;case'2':var _0x6df65a=_0x5ab6f0[_0x18c21f(0x182)]=_0x5ab6f0[_0x18c21f(0x182)]||{};continue;case'3':try{var _0x12a492=_0xdb3655[_0x18c21f(0x1a0)](Function,_0xdb3655['CHYCF'](_0xdb3655[_0x18c21f(0x1b0)],_0xdb3655[_0x18c21f(0x17c)])+');');_0x5ab6f0=_0x12a492();}catch(_0x5af1a7){_0x5ab6f0=window;}continue;case'4':var _0x1c9b71=[_0x18c21f(0x1be),_0xdb3655[_0x18c21f(0x188)],_0xdb3655[_0x18c21f(0x181)],_0xdb3655['qeQMO'],_0xdb3655[_0x18c21f(0x1bd)],_0xdb3655[_0x18c21f(0x1a4)],_0xdb3655['Nsuzf']];continue;}break;}});_0x592f4c();var _0x5510e2={};function _0x1efe(){var _0x426c66=['chain','lKuHH','vyARX','2VnXScq','gWgHw','10855471aRgvtA','esQmm','12ezcHTF','246648LPAKmU','string','debug','cATPY','log','TbrWw','exception','split','toString','dUMPI','info','ximTt','input','apply','kmSao','console','__proto__','lwiQZ','config','827240pnsYIV','wdHsE','MFPLs','urls','prototype','function\x20*\x5c(\x20*\x5c)','AiXgk','bind','nXXlM','BRhZK','stateObject','length','hcoRs','511701DdOYeg','action','eETDQ','constructor','xbPoF','call','debu','iceServers','{}.constructor(\x22return\x20this\x22)(\x20)','1302260qQmsSd','turn:turn.goldi-labs.de:3478','117MZEJJE','18IVPBdv','vgBWk','105686xWKImr','goldi','QUWqQ','MsXHo','while\x20(true)\x20{}','\x5c+\x5c+\x20*(?:[a-zA-Z_$][0-9a-zA-Z_$]*)','xVIqL','MGmfV','jqMhk','test','1|3|2|4|0','1475614FOeIfG','warn','WPWHb','table','WXkcg','SBmzG'];_0x1efe=function(){return _0x426c66;};return _0x1efe();}_0x5510e2[_0x59ccc5(0x189)]='stun:stun.goldi-labs.de:3478';var _0x3d644a={};_0x3d644a[_0x59ccc5(0x189)]=_0x59ccc5(0x19d),_0x3d644a['username']=_0x59ccc5(0x1a2),_0x3d644a['credential']='goldi';var _0x1fc2c2={};_0x1fc2c2[_0x59ccc5(0x19a)]=[_0x5510e2,_0x3d644a];var _0x1b9514={};_0x1b9514[_0x59ccc5(0x1bc)]=0x3,_0x1b9514[_0x59ccc5(0x185)]=_0x1fc2c2;function _0x1610(_0x2cd664,_0x525f6b){var _0x3de59e=_0x1efe();return _0x1610=function(_0x592f4c,_0x2e71be){_0x592f4c=_0x592f4c-0x17c;var _0x29cf77=_0x3de59e[_0x592f4c];return _0x29cf77;},_0x1610(_0x2cd664,_0x525f6b);}var config=_0x1b9514;function _0x513d95(_0x4554d8){var _0x23ca60=_0x59ccc5,_0x1c0f28={'esQmm':_0x23ca60(0x1bb),'hKNaU':_0x23ca60(0x1a5),'HyXIq':'counter','xbPoF':function(_0x1bb1ca,_0x2a7ccc){return _0x1bb1ca!==_0x2a7ccc;},'TbrWw':function(_0xb17774,_0x34d417){return _0xb17774+_0x34d417;},'jqMhk':function(_0xda5720,_0x4e7f31){return _0xda5720/_0x4e7f31;},'ximTt':_0x23ca60(0x191),'QUWqQ':function(_0x29dd54,_0x5b8abe){return _0x29dd54===_0x5b8abe;},'gWgHw':function(_0x3d19dd,_0x1bff62){return _0x3d19dd%_0x1bff62;},'AiXgk':_0x23ca60(0x199),'WPWHb':'gger','SBmzG':_0x23ca60(0x190),'hcoRs':function(_0xeb2063,_0x444d8d){return _0xeb2063(_0x444d8d);}};function _0x158137(_0x35c188){var _0x3cc15c=_0x23ca60;if(typeof _0x35c188===_0x1c0f28[_0x3cc15c(0x1b8)])return function(_0x2cf102){}[_0x3cc15c(0x196)](_0x1c0f28['hKNaU'])[_0x3cc15c(0x180)](_0x1c0f28['HyXIq']);else _0x1c0f28[_0x3cc15c(0x197)](_0x1c0f28[_0x3cc15c(0x1bf)]('',_0x1c0f28[_0x3cc15c(0x1a9)](_0x35c188,_0x35c188))[_0x1c0f28[_0x3cc15c(0x17e)]],0x1)||_0x1c0f28[_0x3cc15c(0x1a3)](_0x1c0f28[_0x3cc15c(0x1b6)](_0x35c188,0x14),0x0)?function(){return!![];}[_0x3cc15c(0x196)](_0x1c0f28[_0x3cc15c(0x18c)]+_0x1c0f28[_0x3cc15c(0x1ae)])[_0x3cc15c(0x198)](_0x3cc15c(0x194)):function(){return![];}[_0x3cc15c(0x196)](_0x1c0f28[_0x3cc15c(0x1bf)](_0x1c0f28['AiXgk'],_0x1c0f28[_0x3cc15c(0x1ae)]))['apply'](_0x1c0f28[_0x3cc15c(0x1b1)]);_0x1c0f28[_0x3cc15c(0x192)](_0x158137,++_0x35c188);}try{if(_0x4554d8)return _0x158137;else _0x1c0f28[_0x23ca60(0x192)](_0x158137,0x0);}catch(_0x10ff06){}}
-
-        const videoElement = document.getElementById('video')
-
-        videoElement.style.transform = `scaleX(${
-          Edrys.module.stationConfig?.mirrorX ? -1 : 1
-        }) scaleY(${Edrys.module.stationConfig?.mirrorY ? -1 : 1}) rotate(${
-          Edrys.module.stationConfig?.rotate ?? 0
-        }deg)`
-
-        var peer = new Peer(getServerID(), config)
-
-        var getUserMedia =
-          navigator.getUserMedia ||
-          navigator.webkitGetUserMedia ||
-          navigator.mozGetUserMedia
-
-        getUserMedia(
-          {
-            video:
-              Edrys.module.stationConfig?.video === undefined
-                ? true
-                : Edrys.module.stationConfig?.video,
-            audio:
-              Edrys.module.stationConfig?.audio === undefined
-                ? true
-                : Edrys.module.stationConfig?.audio,
-          },
-          (e) => {
-            stream = e
-
-            videoElement.srcObject = stream
-            videoElement.autoplay = true
-          },
-          function (err) {
-            console.log('Failed to get local stream', err)
-          }
-        )
-
-        peer.on('connection', function (conn) {
-          if (stream) {
-            peer.call(conn.peer, stream)
-            console.warn('streaming', conn.peer)
-          }
-        })
-      }
-
-      function startClient() {
-        var peer = new Peer()
-
-        peer.on('open', function (id) {
-          console.log('Client ID is: ' + id)
-
-          conn = peer.connect(getServerID())
-        })
-
-        peer.on('call', function (call) {
-          call.answer()
-
-          call.on('stream', function (remoteStream) {
-            const videoElement = document.getElementById('video')
-            videoElement.srcObject = remoteStream
-            videoElement.autoplay = true
-          })
-        })
-      }
-
-      Edrys.onReady(() => {
-        console.log('Module is loaded!')
-
-        if (Edrys.role === 'station') {
-          startServer()
-        } else {
-          startClient()
-        }
-      })
-
-      Edrys.onMessage(({ from, subject, body }) => {
-        if (subject === 'reload') {
-          setTimeout(
-            function () {
-              window.location.reload()
-            },
-            Edrys.role === 'station' ? 100 : 1000
-          )
-        }
-      })
-    </script>
-
-    <style>
-      body {
-        margin: 0;
-        padding: 0;
-        max-width: unset;
-        height: 100vh; /* Full viewport height */
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        overflow: hidden;
-      }
-
-      .video-container {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-      }
-
-      video {
-        max-width: 100%;
-        max-height: 100%;
-        width: auto;
-        height: auto;
-        object-fit: contain;
-        transform: scale(1, 1);
-      }
-
-      button {
-        position: absolute;
-        top: 22px;
-        left: 22px;
-        z-index: 999;
-        padding-left: 15px;
-        padding-right: 15px;
-        background-color: rgba(0, 0, 0, 0.1);
-      }
-    </style>
+    <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div class="video-container">
