@@ -18,22 +18,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate config.js
+      - name: Update Config in HTML
         run: |
-          echo "window.CONFIG = {
-            iceServers: [
-              { urls: \"${{ secrets.STUN_URL_GOLDI }}\" },
-              { urls: \"${{ secrets.STUN_URL_GOOGLE }}\" },
-              { urls: \"${{ secrets.STUN_URL_METERED }}\" },
-              {
-                urls: \"${{ secrets.TURN_URL_GOLDI }}\",
-                username: \"${{ secrets.TURN_USERNAME }}\",
-                credential: \"${{ secrets.TURN_CREDENTIAL }}\"
-              }
-            ],
-            iceTransportPolicy: \"all\",
-            iceCandidatePoolSize: 10
-          };" > config.js
+          sed -i "s|%%STUN_URL_GOLDI%%|${{ secrets.STUN_URL_GOLDI }}|g" index.html
+          sed -i "s|%%STUN_URL_GOOGLE%%|${{ secrets.STUN_URL_GOOGLE }}|g" index.html
+          sed -i "s|%%STUN_URL_METERED%%|${{ secrets.STUN_URL_METERED }}|g" index.html
+          sed -i "s|%%TURN_URL_GOLDI%%|${{ secrets.TURN_URL_GOLDI }}|g" index.html
+          sed -i "s|%%TURN_USERNAME%%|${{ secrets.TURN_USERNAME }}|g" index.html
+          sed -i "s|%%TURN_CREDENTIAL%%|${{ secrets.TURN_CREDENTIAL }}|g" index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
