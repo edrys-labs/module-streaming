@@ -3,10 +3,17 @@ const configuration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
   ],
   iceTransportPolicy: "all",
   iceCandidatePoolSize: 2,
 };
+
+// Track connection state
+let isNegotiating = false;
+let makingOffer = false;
 
 // Keep track of sent ICE candidates to prevent duplicates
 const sentIceCandidates = new Set();
@@ -35,6 +42,29 @@ async function connectToPeer({ roomId, peerId, stream }) {
   }
   peerConnection = new RTCPeerConnection(configuration);
 
+  // Track negotiation state
+  peerConnection.onnegotiationneeded = async () => {
+    try {
+      makingOffer = true;
+      await peerConnection.setLocalDescription();
+      Edrys.sendMessage("webrtc-signal", {
+        type: "offer",
+        sdp: peerConnection.localDescription,
+        targetPeerId: peerId,
+        fromPeerId: Edrys.username,
+      });
+    } catch (err) {
+      console.error("Error during negotiation:", err);
+    } finally {
+      makingOffer = false;
+    }
+  };
+
+  peerConnection.onsignalingstatechange = () => {
+    console.log("Signaling state:", peerConnection.signalingState);
+    isNegotiating = peerConnection.signalingState !== "stable";
+  };
+
   const videoElement = document.getElementById("video");
 
   peerConnection.onicecandidate = (event) => {
@@ -56,17 +86,45 @@ async function connectToPeer({ roomId, peerId, stream }) {
   Edrys.onMessage(async ({ subject, body }) => {
     if (subject === "webrtc-signal" && body.targetPeerId === Edrys.username) {
       try {
-        if (body.type === "answer") {
+        const isStable =
+          peerConnection.signalingState === "stable" ||
+          (peerConnection.signalingState === "have-local-offer" && makingOffer);
+
+        if (body.type === "offer") {
+          if (!isStable) {
+            console.log("Ignoring offer while negotiating");
+            return;
+          }
+          await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(body.sdp)
+          );
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          Edrys.sendMessage("webrtc-signal", {
+            type: "answer",
+            sdp: answer,
+            targetPeerId: body.fromPeerId,
+            fromPeerId: Edrys.username,
+          });
+        } else if (body.type === "answer") {
+          if (makingOffer) {
+            console.log("Ignoring answer while making offer");
+            return;
+          }
           await peerConnection.setRemoteDescription(
             new RTCSessionDescription(body.sdp)
           );
         } else if (body.type === "ice-candidate") {
           try {
-            await peerConnection.addIceCandidate(
-              new RTCIceCandidate(body.candidate)
-            );
+            if (peerConnection.signalingState !== "closed") {
+              await peerConnection.addIceCandidate(
+                new RTCIceCandidate(body.candidate)
+              );
+            }
           } catch (e) {
-            console.error("Error adding received ICE candidate:", e);
+            if (!makingOffer) {
+              console.error("Error adding received ICE candidate:", e);
+            }
           }
         }
       } catch (err) {
@@ -166,7 +224,17 @@ function startServer() {
           }
 
           try {
+            const isStable =
+              peerConnection.signalingState === "stable" ||
+              (peerConnection.signalingState === "have-local-offer" &&
+                makingOffer);
+
             if (body.type === "offer") {
+              if (!isStable) {
+                console.log("Ignoring offer while negotiating");
+                return;
+              }
+
               await peerConnection.setRemoteDescription(
                 new RTCSessionDescription(body.sdp)
               );
@@ -180,12 +248,10 @@ function startServer() {
                 fromPeerId: Edrys.username,
               });
             } else if (body.type === "ice-candidate") {
-              try {
+              if (peerConnection.signalingState !== "closed") {
                 await peerConnection.addIceCandidate(
                   new RTCIceCandidate(body.candidate)
                 );
-              } catch (e) {
-                console.error("Error adding received ICE candidate:", e);
               }
             }
           } catch (err) {
