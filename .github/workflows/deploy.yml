@@ -20,12 +20,30 @@ jobs:
 
       - name: Update Config in HTML
         run: |
-          sed -i "s|%%STUN_URL_GOLDI%%|${{ secrets.STUN_URL_GOLDI }}|g" index.html
-          sed -i "s|%%STUN_URL_GOOGLE%%|${{ secrets.STUN_URL_GOOGLE }}|g" index.html
-          sed -i "s|%%STUN_URL_METERED%%|${{ secrets.STUN_URL_METERED }}|g" index.html
-          sed -i "s|%%TURN_URL_GOLDI%%|${{ secrets.TURN_URL_GOLDI }}|g" index.html
-          sed -i "s|%%TURN_USERNAME%%|${{ secrets.TURN_USERNAME }}|g" index.html
-          sed -i "s|%%TURN_CREDENTIAL%%|${{ secrets.TURN_CREDENTIAL }}|g" index.html
+          # First, verify that secrets are available
+          if [ -z "${{ secrets.TURN_URL_GOLDI }}" ]; then
+            echo "Warning: Using fallback STUN/TURN configuration"
+            # Use public Google STUN servers if secrets aren't set
+            sed -i 's|// Default public STUN server|// Using fallback configuration|' index.html
+          else
+            # Escape URLs properly for sed
+            STUN_GOLDI=$(echo "${{ secrets.STUN_URL_GOLDI }}" | sed 's/[\/&]/\\&/g')
+            STUN_GOOGLE=$(echo "${{ secrets.STUN_URL_GOOGLE }}" | sed 's/[\/&]/\\&/g')
+            STUN_METERED=$(echo "${{ secrets.STUN_URL_METERED }}" | sed 's/[\/&]/\\&/g')
+            TURN_GOLDI=$(echo "${{ secrets.TURN_URL_GOLDI }}" | sed 's/[\/&]/\\&/g')
+            
+            # Update the configuration
+            sed -i "s|stun:stun.l.google.com:19302|${STUN_GOLDI}|g" index.html
+            sed -i "s|stun:stun1.l.google.com:19302|${STUN_GOOGLE}|g" index.html
+            sed -i "s|stun:stun2.l.google.com:19302|${STUN_METERED}|g" index.html
+            sed -i "s|stun:stun.relay.metered.ca:80|${TURN_GOLDI}|g" index.html
+            sed -i "s|\"anonymous\"|\"${{ secrets.TURN_USERNAME }}\"|g" index.html
+            sed -i "s|\"anonymous\"|\"${{ secrets.TURN_CREDENTIAL }}\"|g" index.html
+          fi
+          
+          # Verify the substitution
+          echo "Checking configuration (with credentials redacted)..."
+          grep -A 10 "window.CONFIG = {" index.html | sed 's/credential: ".*"/credential: "REDACTED"/'
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
