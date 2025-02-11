@@ -1,0 +1,33 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Generate config.js
+        run: |
+          cp config.template.js config.js
+          sed -i "s|{{STUN_URL_GOLDI}}|${{ secrets.STUN_URL_GOLDI }}|g" config.js
+          sed -i "s|{{STUN_URL_GOOGLE}}|${{ secrets.STUN_URL_GOOGLE }}|g" config.js
+          sed -i "s|{{STUN_URL_METERED}}|${{ secrets.STUN_URL_METERED }}|g" config.js
+          sed -i "s|{{TURN_URL_GOLDI}}|${{ secrets.TURN_URL_GOLDI }}|g" config.js
+          sed -i "s|{{TURN_USERNAME}}|${{ secrets.TURN_USERNAME }}|g" config.js
+          sed -i "s|{{TURN_CREDENTIAL}}|${{ secrets.TURN_CREDENTIAL }}|g" config.js
+
+      - name: Deploy to GitHub Pages
+        uses: actions/configure-pages@v3
+      - uses: actions/upload-pages-artifact@v2
+        with:
+          path: '.'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2

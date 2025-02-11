@@ -1,19 +1,11 @@
 let peerConnection;
-const configuration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-  ],
-  iceTransportPolicy: "all",
-  iceCandidatePoolSize: 2,
-};
+const configuration = CONFIG;
 
 // Track connection state
-let isNegotiating = false;
 let makingOffer = false;
+let ignoreOffer = false;
+let signalingQueue = [];
+let isProcessingSignal = false;
 
 // Keep track of sent ICE candidates to prevent duplicates
 const sentIceCandidates = new Set();
@@ -36,36 +28,79 @@ function getServerID() {
   return btoa(Edrys.class_id + Edrys.liveUser.room);
 }
 
+async function processSignalingQueue() {
+  if (isProcessingSignal || signalingQueue.length === 0) return;
+  
+  isProcessingSignal = true;
+  const signal = signalingQueue.shift();
+  
+  try {
+    if (signal.type === "offer") {
+      if (peerConnection.signalingState === "stable") {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        Edrys.sendMessage("webrtc-signal", {
+          type: "answer",
+          sdp: answer,
+          targetPeerId: signal.fromPeerId,
+          fromPeerId: Edrys.username,
+        });
+      }
+    } else if (signal.type === "answer") {
+      if (peerConnection.signalingState === "have-local-offer") {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+      }
+    }
+  } catch (err) {
+    console.error("Error processing signal:", err);
+    if (peerConnection.signalingState !== "stable") {
+      try {
+        await peerConnection.setLocalDescription({type: "rollback"});
+      } catch (e) {
+        console.log("Rollback failed:", e);
+      }
+    }
+  } finally {
+    isProcessingSignal = false;
+    // Process next signal if available
+    processSignalingQueue();
+  }
+}
+
 async function connectToPeer({ roomId, peerId, stream }) {
   if (peerConnection) {
     peerConnection.close();
+    signalingQueue = []; // Clear queue when connection is reset
   }
+  
   peerConnection = new RTCPeerConnection(configuration);
+  const videoElement = document.getElementById("video");
 
-  // Track negotiation state
-  peerConnection.onnegotiationneeded = async () => {
-    try {
-      makingOffer = true;
-      await peerConnection.setLocalDescription();
-      Edrys.sendMessage("webrtc-signal", {
-        type: "offer",
-        sdp: peerConnection.localDescription,
-        targetPeerId: peerId,
-        fromPeerId: Edrys.username,
-      });
-    } catch (err) {
-      console.error("Error during negotiation:", err);
-    } finally {
-      makingOffer = false;
+  // Add connection state logging and recovery
+  peerConnection.onsignalingstatechange = () => {
+    console.log(`Signaling state changed to: ${peerConnection.signalingState}`);
+    if (peerConnection.signalingState === "stable") {
+      processSignalingQueue();
     }
   };
 
-  peerConnection.onsignalingstatechange = () => {
-    console.log("Signaling state:", peerConnection.signalingState);
-    isNegotiating = peerConnection.signalingState !== "stable";
+  peerConnection.onconnectionstatechange = () => {
+    console.log(`Connection state changed to: ${peerConnection.connectionState}`);
+    if (peerConnection.connectionState === "failed") {
+      // Try to recover the connection
+      peerConnection.restartIce();
+      if (signalingQueue.length > 0) {
+        processSignalingQueue();
+      }
+    }
   };
 
-  const videoElement = document.getElementById("video");
+  peerConnection.oniceconnectionstatechange = () => {
+    if (peerConnection.iceConnectionState === "failed") {
+      peerConnection.restartIce();
+    }
+  };
 
   peerConnection.onicecandidate = (event) => {
     if (event.candidate && shouldSendIceCandidate(event.candidate)) {
@@ -82,49 +117,22 @@ async function connectToPeer({ roomId, peerId, stream }) {
     videoElement.srcObject = event.streams[0];
   };
 
-  // Set up signaling before creating offer
+  // Modified signaling handler
   Edrys.onMessage(async ({ subject, body }) => {
     if (subject === "webrtc-signal" && body.targetPeerId === Edrys.username) {
       try {
-        const isStable =
-          peerConnection.signalingState === "stable" ||
-          (peerConnection.signalingState === "have-local-offer" && makingOffer);
-
-        if (body.type === "offer") {
-          if (!isStable) {
-            console.log("Ignoring offer while negotiating");
-            return;
-          }
-          await peerConnection.setRemoteDescription(
-            new RTCSessionDescription(body.sdp)
-          );
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          Edrys.sendMessage("webrtc-signal", {
-            type: "answer",
-            sdp: answer,
-            targetPeerId: body.fromPeerId,
-            fromPeerId: Edrys.username,
-          });
-        } else if (body.type === "answer") {
-          if (makingOffer) {
-            console.log("Ignoring answer while making offer");
-            return;
-          }
-          await peerConnection.setRemoteDescription(
-            new RTCSessionDescription(body.sdp)
-          );
+        if (body.type === "offer" || body.type === "answer") {
+          signalingQueue.push(body);
+          processSignalingQueue();
         } else if (body.type === "ice-candidate") {
-          try {
-            if (peerConnection.signalingState !== "closed") {
-              await peerConnection.addIceCandidate(
-                new RTCIceCandidate(body.candidate)
-              );
+          if (peerConnection.remoteDescription) {
+            try {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(body.candidate));
+            } catch (e) {
+              console.log("ICE candidate error:", e);
             }
-          } catch (e) {
-            if (!makingOffer) {
-              console.error("Error adding received ICE candidate:", e);
-            }
+          } else {
+            console.log("Waiting for remote description before adding ICE candidate");
           }
         }
       } catch (err) {
@@ -133,22 +141,26 @@ async function connectToPeer({ roomId, peerId, stream }) {
     }
   });
 
+  // Modified initial offer creation
   try {
-    // Create and send offer
+    makingOffer = true;
     const offer = await peerConnection.createOffer({
       offerToReceiveAudio: true,
       offerToReceiveVideo: true,
     });
-    await peerConnection.setLocalDescription(offer);
-
-    Edrys.sendMessage("webrtc-signal", {
-      type: "offer",
-      sdp: offer,
-      targetPeerId: peerId,
-      fromPeerId: Edrys.username,
-    });
+    if (peerConnection.signalingState === "stable") {
+      await peerConnection.setLocalDescription(offer);
+      Edrys.sendMessage("webrtc-signal", {
+        type: "offer",
+        sdp: offer,
+        targetPeerId: peerId,
+        fromPeerId: Edrys.username,
+      });
+    }
   } catch (err) {
-    console.error("Error creating/sending offer:", err);
+    console.error("Error creating initial offer:", err);
+  } finally {
+    makingOffer = false;
   }
 }
 
@@ -221,26 +233,32 @@ function startServer() {
                 });
               }
             };
+
+            peerConnection.oniceconnectionstatechange = () => {
+              if (peerConnection.iceConnectionState === "failed") {
+                peerConnection.restartIce();
+              }
+            };
+
+            // Add state logging
+            peerConnection.onsignalingstatechange = () => {
+              console.log(`Server signaling state changed to: ${peerConnection.signalingState}`);
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+              console.log(`Server connection state changed to: ${peerConnection.connectionState}`);
+            };
           }
 
           try {
-            const isStable =
-              peerConnection.signalingState === "stable" ||
-              (peerConnection.signalingState === "have-local-offer" &&
-                makingOffer);
-
             if (body.type === "offer") {
-              if (!isStable) {
-                console.log("Ignoring offer while negotiating");
+              if (peerConnection.signalingState !== "stable") {
+                console.log("Server ignoring offer in non-stable state");
                 return;
               }
-
-              await peerConnection.setRemoteDescription(
-                new RTCSessionDescription(body.sdp)
-              );
+              await peerConnection.setRemoteDescription(new RTCSessionDescription(body.sdp));
               const answer = await peerConnection.createAnswer();
               await peerConnection.setLocalDescription(answer);
-
               Edrys.sendMessage("webrtc-signal", {
                 type: "answer",
                 sdp: answer,
@@ -248,14 +266,18 @@ function startServer() {
                 fromPeerId: Edrys.username,
               });
             } else if (body.type === "ice-candidate") {
-              if (peerConnection.signalingState !== "closed") {
-                await peerConnection.addIceCandidate(
-                  new RTCIceCandidate(body.candidate)
-                );
-              }
+              await peerConnection.addIceCandidate(new RTCIceCandidate(body.candidate))
+                .catch(e => console.log("Error adding ICE candidate:", e));
             }
           } catch (err) {
             console.error("Error in server signal handling:", err);
+            if (peerConnection.signalingState !== "stable") {
+              try {
+                await peerConnection.setLocalDescription({type: "rollback"});
+              } catch (e) {
+                console.log("Server rollback failed:", e);
+              }
+            }
           }
         }
       });
