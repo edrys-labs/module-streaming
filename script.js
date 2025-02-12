@@ -6,6 +6,7 @@ let makingOffer = false;
 let ignoreOffer = false;
 let signalingQueue = [];
 let isProcessingSignal = false;
+let pendingIceCandidates = []; // Buffer for ICE candidates
 
 // Keep track of sent ICE candidates to prevent duplicates
 const sentIceCandidates = new Set();
@@ -22,6 +23,37 @@ function shouldSendIceCandidate(candidate) {
 
   sentIceCandidates.add(key);
   return true;
+}
+
+async function addPendingIceCandidates() {
+  if (peerConnection.remoteDescription && pendingIceCandidates.length > 0) {
+    console.log(`Adding ${pendingIceCandidates.length} pending ICE candidates`);
+    try {
+      await Promise.all(
+        pendingIceCandidates.map(candidate =>
+          peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+        )
+      );
+      pendingIceCandidates = [];
+    } catch (e) {
+      console.error("Error adding pending ICE candidates:", e);
+    }
+  }
+}
+
+async function handleIceCandidate(candidate) {
+  if (!peerConnection) return;
+  
+  try {
+    if (peerConnection.remoteDescription) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } else {
+      console.log("Queuing ICE candidate");
+      pendingIceCandidates.push(candidate);
+    }
+  } catch (e) {
+    console.log("ICE candidate error:", e);
+  }
 }
 
 function getServerID() {
@@ -76,6 +108,7 @@ async function connectToPeer({ roomId, peerId, stream }) {
   if (peerConnection) {
     peerConnection.close();
     signalingQueue = []; // Clear queue when connection is reset
+    pendingIceCandidates = []; // Clear pending candidates
   }
 
   peerConnection = new RTCPeerConnection(configuration);
@@ -128,22 +161,22 @@ async function connectToPeer({ roomId, peerId, stream }) {
     if (subject === "webrtc-signal" && body.targetPeerId === Edrys.username) {
       try {
         if (body.type === "offer" || body.type === "answer") {
-          signalingQueue.push(body);
-          processSignalingQueue();
-        } else if (body.type === "ice-candidate") {
-          if (peerConnection.remoteDescription) {
-            try {
-              await peerConnection.addIceCandidate(
-                new RTCIceCandidate(body.candidate)
-              );
-            } catch (e) {
-              console.log("ICE candidate error:", e);
-            }
-          } else {
-            console.log(
-              "Waiting for remote description before adding ICE candidate"
-            );
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(body.sdp));
+          console.log("Remote description set, processing pending candidates");
+          await addPendingIceCandidates();
+
+          if (body.type === "offer") {
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            Edrys.sendMessage("webrtc-signal", {
+              type: "answer",
+              sdp: answer,
+              targetPeerId: body.fromPeerId,
+              fromPeerId: Edrys.username,
+            });
           }
+        } else if (body.type === "ice-candidate") {
+          await handleIceCandidate(body.candidate);
         }
       } catch (err) {
         console.error("Error handling signal:", err);
@@ -266,13 +299,10 @@ function startServer() {
 
           try {
             if (body.type === "offer") {
-              if (peerConnection.signalingState !== "stable") {
-                console.log("Server ignoring offer in non-stable state");
-                return;
-              }
-              await peerConnection.setRemoteDescription(
-                new RTCSessionDescription(body.sdp)
-              );
+              await peerConnection.setRemoteDescription(new RTCSessionDescription(body.sdp));
+              console.log("Remote description set, processing pending candidates");
+              await addPendingIceCandidates();
+
               const answer = await peerConnection.createAnswer();
               await peerConnection.setLocalDescription(answer);
               Edrys.sendMessage("webrtc-signal", {
@@ -282,9 +312,7 @@ function startServer() {
                 fromPeerId: Edrys.username,
               });
             } else if (body.type === "ice-candidate") {
-              await peerConnection
-                .addIceCandidate(new RTCIceCandidate(body.candidate))
-                .catch((e) => console.log("Error adding ICE candidate:", e));
+              await handleIceCandidate(body.candidate);
             }
           } catch (err) {
             console.error("Error in server signal handling:", err);
