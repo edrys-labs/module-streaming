@@ -1,5 +1,5 @@
 let peerConnection;
-const configuration = CONFIG;
+function _0x3fd3(){const _0x4aa403=['goldi','5306715UlZgCa','870822lVUuRz','1exLvBs','turn:turn.goldi-labs.de:3478','1592215NDUgEO','6XeyPfH','stun:stun.goldi-labs.de:3478','2170744oyVwEO','stun:stun.l.google.com:19302','stun:stun.openrelay.metered.ca:80','4539136KlkkNz','356688YJTDnL','all','4994871RnIHOy'];_0x3fd3=function(){return _0x4aa403;};return _0x3fd3();}function _0x1467(_0x4af275,_0x38277c){const _0x3fd341=_0x3fd3();return _0x1467=function(_0x14678b,_0x4b059c){_0x14678b=_0x14678b-0xce;let _0x5a34b1=_0x3fd341[_0x14678b];return _0x5a34b1;},_0x1467(_0x4af275,_0x38277c);}const _0x341ee9=_0x1467;(function(_0x398ad8,_0x2cf07f){const _0x4ac30a=_0x1467,_0x5718dc=_0x398ad8();while(!![]){try{const _0x3ada69=-parseInt(_0x4ac30a(0xcf))/0x1*(-parseInt(_0x4ac30a(0xce))/0x2)+-parseInt(_0x4ac30a(0xd8))/0x3+-parseInt(_0x4ac30a(0xd4))/0x4+parseInt(_0x4ac30a(0xd1))/0x5+-parseInt(_0x4ac30a(0xd2))/0x6*(parseInt(_0x4ac30a(0xda))/0x7)+parseInt(_0x4ac30a(0xd7))/0x8+parseInt(_0x4ac30a(0xdc))/0x9;if(_0x3ada69===_0x2cf07f)break;else _0x5718dc['push'](_0x5718dc['shift']());}catch(_0x342a9d){_0x5718dc['push'](_0x5718dc['shift']());}}}(_0x3fd3,0x82cc2));const configuration={'iceServers':[{'urls':_0x341ee9(0xd3)},{'urls':_0x341ee9(0xd5)},{'urls':_0x341ee9(0xd6)},{'urls':_0x341ee9(0xd0),'username':_0x341ee9(0xdb),'credential':_0x341ee9(0xdb)}],'iceTransportPolicy':_0x341ee9(0xd9),'iceCandidatePoolSize':0xa};
 
 // Track connection state
 let makingOffer = false;
@@ -30,14 +30,16 @@ function getServerID() {
 
 async function processSignalingQueue() {
   if (isProcessingSignal || signalingQueue.length === 0) return;
-  
+
   isProcessingSignal = true;
   const signal = signalingQueue.shift();
-  
+
   try {
     if (signal.type === "offer") {
       if (peerConnection.signalingState === "stable") {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        await peerConnection.setRemoteDescription(
+          new RTCSessionDescription(signal.sdp)
+        );
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         Edrys.sendMessage("webrtc-signal", {
@@ -49,14 +51,16 @@ async function processSignalingQueue() {
       }
     } else if (signal.type === "answer") {
       if (peerConnection.signalingState === "have-local-offer") {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        await peerConnection.setRemoteDescription(
+          new RTCSessionDescription(signal.sdp)
+        );
       }
     }
   } catch (err) {
     console.error("Error processing signal:", err);
     if (peerConnection.signalingState !== "stable") {
       try {
-        await peerConnection.setLocalDescription({type: "rollback"});
+        await peerConnection.setLocalDescription({ type: "rollback" });
       } catch (e) {
         console.log("Rollback failed:", e);
       }
@@ -73,7 +77,7 @@ async function connectToPeer({ roomId, peerId, stream }) {
     peerConnection.close();
     signalingQueue = []; // Clear queue when connection is reset
   }
-  
+
   peerConnection = new RTCPeerConnection(configuration);
   const videoElement = document.getElementById("video");
 
@@ -86,7 +90,9 @@ async function connectToPeer({ roomId, peerId, stream }) {
   };
 
   peerConnection.onconnectionstatechange = () => {
-    console.log(`Connection state changed to: ${peerConnection.connectionState}`);
+    console.log(
+      `Connection state changed to: ${peerConnection.connectionState}`
+    );
     if (peerConnection.connectionState === "failed") {
       // Try to recover the connection
       peerConnection.restartIce();
@@ -127,12 +133,16 @@ async function connectToPeer({ roomId, peerId, stream }) {
         } else if (body.type === "ice-candidate") {
           if (peerConnection.remoteDescription) {
             try {
-              await peerConnection.addIceCandidate(new RTCIceCandidate(body.candidate));
+              await peerConnection.addIceCandidate(
+                new RTCIceCandidate(body.candidate)
+              );
             } catch (e) {
               console.log("ICE candidate error:", e);
             }
           } else {
-            console.log("Waiting for remote description before adding ICE candidate");
+            console.log(
+              "Waiting for remote description before adding ICE candidate"
+            );
           }
         }
       } catch (err) {
@@ -242,11 +252,15 @@ function startServer() {
 
             // Add state logging
             peerConnection.onsignalingstatechange = () => {
-              console.log(`Server signaling state changed to: ${peerConnection.signalingState}`);
+              console.log(
+                `Server signaling state changed to: ${peerConnection.signalingState}`
+              );
             };
 
             peerConnection.onconnectionstatechange = () => {
-              console.log(`Server connection state changed to: ${peerConnection.connectionState}`);
+              console.log(
+                `Server connection state changed to: ${peerConnection.connectionState}`
+              );
             };
           }
 
@@ -256,7 +270,9 @@ function startServer() {
                 console.log("Server ignoring offer in non-stable state");
                 return;
               }
-              await peerConnection.setRemoteDescription(new RTCSessionDescription(body.sdp));
+              await peerConnection.setRemoteDescription(
+                new RTCSessionDescription(body.sdp)
+              );
               const answer = await peerConnection.createAnswer();
               await peerConnection.setLocalDescription(answer);
               Edrys.sendMessage("webrtc-signal", {
@@ -266,14 +282,15 @@ function startServer() {
                 fromPeerId: Edrys.username,
               });
             } else if (body.type === "ice-candidate") {
-              await peerConnection.addIceCandidate(new RTCIceCandidate(body.candidate))
-                .catch(e => console.log("Error adding ICE candidate:", e));
+              await peerConnection
+                .addIceCandidate(new RTCIceCandidate(body.candidate))
+                .catch((e) => console.log("Error adding ICE candidate:", e));
             }
           } catch (err) {
             console.error("Error in server signal handling:", err);
             if (peerConnection.signalingState !== "stable") {
               try {
-                await peerConnection.setLocalDescription({type: "rollback"});
+                await peerConnection.setLocalDescription({ type: "rollback" });
               } catch (e) {
                 console.log("Server rollback failed:", e);
               }

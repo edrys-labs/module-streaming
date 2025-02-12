@@ -23,36 +23,6 @@
       rel="stylesheet"
       href="https://edrys-labs.github.io/module/vendor/water.min.css"
     />
-
-    <script id="webrtc-config">
-      window.CONFIG = {
-        iceServers: [
-          // Primary STUN/TURN servers (will be replaced during deployment)
-          { urls: "stun:stun.l.google.com:19302" },  // Default public STUN server
-          { urls: "stun:stun1.l.google.com:19302" }, 
-          { urls: "stun:stun2.l.google.com:19302" }, 
-          {
-            urls: "stun:stun.relay.metered.ca:80",
-            username: "anonymous",
-            credential: "anonymous"
-          },
-          // Fallback public STUN servers
-          { urls: "stun:stun3.l.google.com:19302" },
-          { urls: "stun:stun4.l.google.com:19302" }
-        ],
-        iceTransportPolicy: "all",
-        iceCandidatePoolSize: 10
-      };
-
-      // Verify configuration is loaded
-      console.log("WebRTC configuration loaded:", {
-        ...window.CONFIG,
-        iceServers: window.CONFIG.iceServers.map(server => ({
-          ...server,
-          credential: server.credential ? "REDACTED" : undefined
-        }))
-      });
-    </script>
     
     <script src="./script.js"></script>
     <link rel="stylesheet" href="./style.css" />
