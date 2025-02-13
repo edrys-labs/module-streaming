@@ -109,7 +109,18 @@ async function processSignalingQueue() {
   }
 }
 
-async function connectToPeer({ roomId, peerId, stream }) {
+// Rotate, mirror, and scale video element
+function applyVideoTransform(videoElement, settings) {
+  videoElement.style.transform = `scaleX(${
+    settings?.mirrorX ? -1 : 1
+  }) scaleY(${
+    settings?.mirrorY ? -1 : 1
+  }) rotate(${
+    settings?.rotate ?? 0
+  }deg)`;
+}
+
+async function connectToPeer({ roomId, peerId, stream, settings }) {
   if (peerConnection) {
     peerConnection.close();
     signalingQueue = []; // Clear queue when connection is reset
@@ -159,6 +170,7 @@ async function connectToPeer({ roomId, peerId, stream }) {
 
   peerConnection.ontrack = (event) => {
     videoElement.srcObject = event.streams[0];
+    applyVideoTransform(videoElement, settings);
   };
 
   // Modified signaling handler
@@ -214,12 +226,7 @@ async function connectToPeer({ roomId, peerId, stream }) {
 
 function startServer() {
   const videoElement = document.getElementById("video");
-
-  videoElement.style.transform = `scaleX(${
-    Edrys.module.stationConfig?.mirrorX ? -1 : 1
-  }) scaleY(${Edrys.module.stationConfig?.mirrorY ? -1 : 1}) rotate(${
-    Edrys.module.stationConfig?.rotate ?? 0
-  }deg)`;
+  applyVideoTransform(videoElement, Edrys.module.stationConfig);
 
   navigator.mediaDevices
     .getUserMedia({
@@ -236,6 +243,11 @@ function startServer() {
         Edrys.sendMessage("streamCredentials", {
           roomId: Edrys.class_id,
           peerId: Edrys.username,
+          settings: {
+            mirrorX: Edrys.module.stationConfig?.mirrorX ?? false,
+            mirrorY: Edrys.module.stationConfig?.mirrorY ?? false,
+            rotate: Edrys.module.stationConfig?.rotate ?? 0
+          },
           stream: {
             id: stream.id,
             tracks: stream.getTracks().map((track) => ({
