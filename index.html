@@ -10,6 +10,33 @@
       content="Allow a station to continuously stream video and/or audio to all connected teachers and students. For more information and configuration, see:<br /><a href='https://github.com/edrys-labs/module-streaming' target='_blank'>https://github.com/edrys-labs/module-streaming</a>"
     />
     <meta name="show-in" content="station" />
+    <meta 
+      name="module-config" 
+      content="{
+        'stationConfig': {
+          'video': {
+            'type': boolean,
+            'hint': 'if true, the station will stream video',
+          },
+          'audio': {
+            'type': boolean,
+            'hint': 'if true, the station will stream audio',
+          },
+          'mirrorX': {
+            'type': boolean,
+            'hint': 'Mirror the video horizontally',
+          },
+          'mirrorY': {
+            'type': boolean,
+            'hint': 'Mirror the video vertically',
+          },
+          'rotate': {
+            'type': number,
+            'hint': 'Rotate the video',
+          },
+        }
+      }" 
+    />
 
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://edrys-labs.github.io/module/edrys.js"></script>

@@ -1,115 +1,3 @@
-let peerConnection;
-let peerConnections = new Map(); // Track multiple connections
-
-function _0x3fd3(){const _0x4aa403=['goldi','5306715UlZgCa','870822lVUuRz','1exLvBs','turn:turn.goldi-labs.de:3478','1592215NDUgEO','6XeyPfH','stun:stun.goldi-labs.de:3478','2170744oyVwEO','stun:stun.l.google.com:19302','stun:stun.openrelay.metered.ca:80','4539136KlkkNz','356688YJTDnL','all','4994871RnIHOy'];_0x3fd3=function(){return _0x4aa403;};return _0x3fd3();}function _0x1467(_0x4af275,_0x38277c){const _0x3fd341=_0x3fd3();return _0x1467=function(_0x14678b,_0x4b059c){_0x14678b=_0x14678b-0xce;let _0x5a34b1=_0x3fd341[_0x14678b];return _0x5a34b1;},_0x1467(_0x4af275,_0x38277c);}const _0x341ee9=_0x1467;(function(_0x398ad8,_0x2cf07f){const _0x4ac30a=_0x1467,_0x5718dc=_0x398ad8();while(!![]){try{const _0x3ada69=-parseInt(_0x4ac30a(0xcf))/0x1*(-parseInt(_0x4ac30a(0xce))/0x2)+-parseInt(_0x4ac30a(0xd8))/0x3+-parseInt(_0x4ac30a(0xd4))/0x4+parseInt(_0x4ac30a(0xd1))/0x5+-parseInt(_0x4ac30a(0xd2))/0x6*(parseInt(_0x4ac30a(0xda))/0x7)+parseInt(_0x4ac30a(0xd7))/0x8+parseInt(_0x4ac30a(0xdc))/0x9;if(_0x3ada69===_0x2cf07f)break;else _0x5718dc['push'](_0x5718dc['shift']());}catch(_0x342a9d){_0x5718dc['push'](_0x5718dc['shift']());}}}(_0x3fd3,0x82cc2));const configuration={'iceServers':[{'urls':_0x341ee9(0xd3)},{'urls':_0x341ee9(0xd5)},{'urls':_0x341ee9(0xd6)},{'urls':_0x341ee9(0xd0),'username':_0x341ee9(0xdb),'credential':_0x341ee9(0xdb)}],'iceTransportPolicy':_0x341ee9(0xd9),'iceCandidatePoolSize':0xa};
-
-// Track connection state
-let makingOffer = false;
-let ignoreOffer = false;
-let signalingQueue = [];
-let isProcessingSignal = false;
-let pendingIceCandidates = []; // Buffer for ICE candidates
-
-// Keep track of sent ICE candidates to prevent duplicates
-const sentIceCandidates = new Set();
-
-function getIceCandidateKey(candidate) {
-  return `${candidate.candidate}-${candidate.sdpMid}-${candidate.sdpMLineIndex}`;
-}
-
-function shouldSendIceCandidate(candidate) {
-  if (!candidate) return false;
-
-  const key = getIceCandidateKey(candidate);
-  if (sentIceCandidates.has(key)) return false;
-
-  sentIceCandidates.add(key);
-  return true;
-}
-
-async function addPendingIceCandidates(peerConnection, pendingCandidates) {
-  if (peerConnection.remoteDescription && pendingCandidates.length > 0) {
-    console.log(`Adding ${pendingCandidates.length} pending ICE candidates`);
-    try {
-      await Promise.all(
-        pendingCandidates.map(candidate =>
-          peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-        )
-      );
-      return [];
-    } catch (e) {
-      console.error("Error adding pending ICE candidates:", e);
-      return pendingCandidates;
-    }
-  }
-  return pendingCandidates;
-}
-
-async function handleIceCandidate(peerConnection, candidate, pendingCandidates) {
-  if (!peerConnection) return pendingCandidates;
-  
-  try {
-    if (peerConnection.remoteDescription) {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    } else {
-      console.log("Queuing ICE candidate");
-      pendingCandidates.push(candidate);
-    }
-  } catch (e) {
-    console.log("ICE candidate error:", e);
-  }
-  return pendingCandidates;
-}
-
-function getServerID() {
-  return btoa(Edrys.class_id + Edrys.liveUser.room);
-}
-
-async function processSignalingQueue() {
-  if (isProcessingSignal || signalingQueue.length === 0) return;
-
-  isProcessingSignal = true;
-  const signal = signalingQueue.shift();
-
-  try {
-    if (signal.type === "offer") {
-      if (peerConnection.signalingState === "stable") {
-        await peerConnection.setRemoteDescription(
-          new RTCSessionDescription(signal.sdp)
-        );
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        Edrys.sendMessage("webrtc-signal", {
-          type: "answer",
-          sdp: answer,
-          targetPeerId: signal.fromPeerId,
-          fromPeerId: Edrys.username,
-        });
-      }
-    } else if (signal.type === "answer") {
-      if (peerConnection.signalingState === "have-local-offer") {
-        await peerConnection.setRemoteDescription(
-          new RTCSessionDescription(signal.sdp)
-        );
-      }
-    }
-  } catch (err) {
-    console.error("Error processing signal:", err);
-    if (peerConnection.signalingState !== "stable") {
-      try {
-        await peerConnection.setLocalDescription({ type: "rollback" });
-      } catch (e) {
-        console.log("Rollback failed:", e);
-      }
-    }
-  } finally {
-    isProcessingSignal = false;
-    // Process next signal if available
-    processSignalingQueue();
-  }
-}
-
-// Rotate, mirror, and scale video element
 function applyVideoTransform(videoElement, settings) {
   videoElement.style.transform = `scaleX(${
     settings?.mirrorX ? -1 : 1
@@ -120,282 +8,46 @@ function applyVideoTransform(videoElement, settings) {
   }deg)`;
 }
 
-async function connectToPeer({ roomId, peerId, stream, settings }) {
-  if (peerConnection) {
-    peerConnection.close();
-    signalingQueue = []; // Clear queue when connection is reset
-    pendingIceCandidates = []; // Clear pending candidates
-  }
-
-  peerConnection = new RTCPeerConnection(configuration);
-  const videoElement = document.getElementById("video");
-
-  // Add connection state logging and recovery
-  peerConnection.onsignalingstatechange = () => {
-    console.log(`Signaling state changed to: ${peerConnection.signalingState}`);
-    if (peerConnection.signalingState === "stable") {
-      processSignalingQueue();
-    }
-  };
-
-  peerConnection.onconnectionstatechange = () => {
-    console.log(
-      `Connection state changed to: ${peerConnection.connectionState}`
-    );
-    if (peerConnection.connectionState === "failed") {
-      // Try to recover the connection
-      peerConnection.restartIce();
-      if (signalingQueue.length > 0) {
-        processSignalingQueue();
-      }
-    }
-  };
-
-  peerConnection.oniceconnectionstatechange = () => {
-    if (peerConnection.iceConnectionState === "failed") {
-      peerConnection.restartIce();
-    }
-  };
-
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate && shouldSendIceCandidate(event.candidate)) {
-      Edrys.sendMessage("webrtc-signal", {
-        type: "ice-candidate",
-        candidate: event.candidate,
-        targetPeerId: peerId,
-        fromPeerId: Edrys.username,
-      });
-    }
-  };
-
-  peerConnection.ontrack = (event) => {
-    videoElement.srcObject = event.streams[0];
-    applyVideoTransform(videoElement, settings);
-  };
-
-  // Modified signaling handler
-  Edrys.onMessage(async ({ subject, body }) => {
-    if (subject === "webrtc-signal" && body.targetPeerId === Edrys.username) {
-      try {
-        if (body.type === "offer" || body.type === "answer") {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(body.sdp));
-          console.log("Remote description set, processing pending candidates");
-          await addPendingIceCandidates(peerConnection, pendingIceCandidates);
-
-          if (body.type === "offer") {
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            Edrys.sendMessage("webrtc-signal", {
-              type: "answer",
-              sdp: answer,
-              targetPeerId: body.fromPeerId,
-              fromPeerId: Edrys.username,
-            });
-          }
-        } else if (body.type === "ice-candidate") {
-          pendingIceCandidates = await handleIceCandidate(peerConnection, body.candidate, pendingIceCandidates);
-        }
-      } catch (err) {
-        console.error("Error handling signal:", err);
-      }
-    }
-  });
-
-  // Modified initial offer creation
-  try {
-    makingOffer = true;
-    const offer = await peerConnection.createOffer({
-      offerToReceiveAudio: true,
-      offerToReceiveVideo: true,
-    });
-    if (peerConnection.signalingState === "stable") {
-      await peerConnection.setLocalDescription(offer);
-      Edrys.sendMessage("webrtc-signal", {
-        type: "offer",
-        sdp: offer,
-        targetPeerId: peerId,
-        fromPeerId: Edrys.username,
-      });
-    }
-  } catch (err) {
-    console.error("Error creating initial offer:", err);
-  } finally {
-    makingOffer = false;
-  }
-}
-
 function startServer() {
   const videoElement = document.getElementById("video");
   applyVideoTransform(videoElement, Edrys.module.stationConfig);
+  
+  navigator.mediaDevices.getUserMedia({
+    video: Edrys.module.stationConfig?.video ?? true,
+    audio: Edrys.module.stationConfig?.audio ?? true,
+  }).then(async (stream) => {
+    videoElement.srcObject = stream;
+    videoElement.autoplay = true;
+    
+    await Edrys.sendStream(stream);
+  }).catch(console.error);
 
-  navigator.mediaDevices
-    .getUserMedia({
-      video: Edrys.module.stationConfig?.video ?? true,
-      audio: Edrys.module.stationConfig?.audio ?? true,
-    })
-    .then((stream) => {
+  // For screen sharing
+  /*navigator.mediaDevices.getDisplayMedia({
+      video: {
+          cursor: "always"
+      },
+      audio: false
+    }).then(async (stream) => {
       videoElement.srcObject = stream;
       videoElement.autoplay = true;
-      window.localStream = stream;
 
-      // Broadcast stream info
-      const broadcastStreamInfo = () => {
-        Edrys.sendMessage("streamCredentials", {
-          roomId: Edrys.class_id,
-          peerId: Edrys.username,
-          settings: {
-            mirrorX: Edrys.module.stationConfig?.mirrorX ?? false,
-            mirrorY: Edrys.module.stationConfig?.mirrorY ?? false,
-            rotate: Edrys.module.stationConfig?.rotate ?? 0
-          },
-          stream: {
-            id: stream.id,
-            tracks: stream.getTracks().map((track) => ({
-              kind: track.kind,
-              enabled: track.enabled,
-            })),
-          },
-        });
-      };
-
-      // Only broadcast when receiving a 'requestStream' message
-      Edrys.onMessage(({ subject, from }) => {
-        if (subject === "requestStream") {
-          broadcastStreamInfo();
-        }
-      });
-
-      // Initial broadcast when server starts
-      broadcastStreamInfo();
-
-      // Set up server-side peer connection handler
-      Edrys.onMessage(async ({ subject, body, from }) => {
-        if (subject === "webrtc-signal" && body.targetPeerId === Edrys.username) {
-          let peerConnection = peerConnections.get(from);
-          let pendingCandidates = new Map(); // Track pending candidates per peer
-
-          if (!peerConnection || peerConnection.connectionState === "closed") {
-            peerConnection = new RTCPeerConnection(configuration);
-            peerConnections.set(from, peerConnection);
-            pendingCandidates.set(from, []);
-            console.log(`Created new connection for peer: ${from}`);
-
-            // Add local stream tracks to connection
-            stream.getTracks().forEach((track) => {
-              peerConnection.addTrack(track, stream);
-            });
-
-            peerConnection.onicecandidate = (event) => {
-              if (event.candidate && shouldSendIceCandidate(event.candidate)) {
-                Edrys.sendMessage("webrtc-signal", {
-                  type: "ice-candidate",
-                  candidate: event.candidate,
-                  targetPeerId: from,
-                  fromPeerId: Edrys.username,
-                });
-              }
-            };
-
-            peerConnection.oniceconnectionstatechange = () => {
-              if (peerConnection.iceConnectionState === "failed") {
-                peerConnection.restartIce();
-              } else if (peerConnection.iceConnectionState === "disconnected") {
-                console.log(`Peer ${from} disconnected`);
-                peerConnections.delete(from);
-              }
-            };
-
-            peerConnection.onsignalingstatechange = () => {
-              console.log(
-                `Server signaling state changed to: ${peerConnection.signalingState} for peer ${from}`
-              );
-            };
-
-            peerConnection.onconnectionstatechange = () => {
-              console.log(
-                `Server connection state changed to: ${peerConnection.connectionState} for peer ${from}`
-              );
-              if (peerConnection.connectionState === "failed" || 
-                  peerConnection.connectionState === "closed") {
-                peerConnections.delete(from);
-              }
-            };
-          }
-
-          try {
-            if (body.type === "offer") {
-              if (peerConnection.signalingState === "stable") {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(body.sdp));
-                console.log(`Processing offer from peer: ${from}`);
-                
-                // Process any pending candidates
-                pendingCandidates.set(from, 
-                  await addPendingIceCandidates(peerConnection, pendingCandidates.get(from) || [])
-                );
-
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                Edrys.sendMessage("webrtc-signal", {
-                  type: "answer",
-                  sdp: answer,
-                  targetPeerId: from,
-                  fromPeerId: Edrys.username,
-                });
-              }
-            } else if (body.type === "ice-candidate") {
-              pendingCandidates.set(from,
-                await handleIceCandidate(
-                  peerConnection,
-                  body.candidate,
-                  pendingCandidates.get(from) || []
-                )
-              );
-            }
-          } catch (err) {
-            console.error(`Error in server signal handling for peer ${from}:`, err);
-            if (peerConnection.signalingState !== "stable") {
-              try {
-                await peerConnection.setLocalDescription({ type: "rollback" });
-              } catch (e) {
-                console.log(`Server rollback failed for peer ${from}:`, e);
-              }
-            }
-          }
-        }
-      });
-
-      // Send stream info to peers
-      Edrys.sendMessage("streamCredentials", {
-        roomId: Edrys.class_id,
-        peerId: Edrys.username,
-        stream: {
-          id: stream.id,
-          tracks: stream.getTracks().map((track) => ({
-            kind: track.kind,
-            enabled: track.enabled,
-          })),
-        },
-      });
-    })
-    .catch((err) => {
-      console.error("Failed to get local stream:", err);
-    });
+      await Edrys.sendStream(stream);
+    }).catch(console.error);
+  */
 }
 
 function startClient() {
-  // Request stream info when starting
-  Edrys.sendMessage("requestStream");
-
-  // Listen for stream credentials
-  Edrys.onMessage(({ subject, body }) => {
-    if (subject === "streamCredentials") {
-      connectToPeer(body);
-    }
+  const videoElement = document.getElementById("video");
+          
+  Edrys.onStream((stream, settings) => {
+    //console.log("Stream received with settings:", settings);
+    videoElement.srcObject = stream;
+    applyVideoTransform(videoElement, settings);
   });
 }
 
 Edrys.onReady(() => {
-  console.log("Stream Module is loaded!");
   if (Edrys.role === "station") {
     startServer();
   } else {
@@ -403,19 +55,10 @@ Edrys.onReady(() => {
   }
 });
 
-Edrys.onMessage(({ from, subject, body }) => {
+Edrys.onMessage(({ subject }) => {
   if (subject === "reload") {
-    // Cleanup all connections
-    peerConnections.forEach((connection, peer) => {
-      connection.close();
-    });
-    peerConnections.clear();
-    
-    setTimeout(
-      function () {
-        window.location.reload();
-      },
-      Edrys.role === "station" ? 100 : 1000
-    );
+    setTimeout(() => {
+      window.location.reload();
+    }, Edrys.role === "station" ? 100 : 1000);
   }
 });
