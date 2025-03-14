@@ -57,6 +57,10 @@
   <body>
     <div class="video-container">
       <video id="video" style="width: 100%" autoplay controls></video>
+      <div id="loader" class="loader-container">
+        <div class="loader"></div>
+        <div class="loader-text">Connecting to stream... (This may take a moment)</div>
+      </div>
       <button
         onclick="Edrys.sendMessage('reload', true)"
         title="force reload of the camera"
