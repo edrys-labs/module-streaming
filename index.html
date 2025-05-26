@@ -34,6 +34,14 @@
             'type': number,
             'hint': 'Rotate the video',
           },
+          'streamMethod': {
+            'type': radio-button,
+            'options': ['webrtc', 'websocket'],
+          },
+          'websocketUrl': {
+            'type': string,
+            'hint': 'WebSocket server URL (needed for websocket method)',
+          }
         }
       }" 
     />
@@ -67,6 +75,7 @@
       >
         ⟳
       </button>
+      <select id="camera-select" title="Select camera"></select>
     </div>
   </body>
 </html>

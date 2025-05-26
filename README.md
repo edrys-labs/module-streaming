@@ -1,6 +1,6 @@
 # Edrys Station-Stream Module
 
-This module will allow a station to send a video and or audio stream to all connected users via a direct WebRTC connection.
+This module will allow a station to send a video and or audio stream to all connected users via a direct WebRTC connection or via a WebSocket connection.
 
 Import the module via:
 
@@ -17,6 +17,8 @@ audio: false
 mirrorX: false
 mirrorY: true
 rotate: 90
+streamMethod: "webrtc" # or "websocket"
+websocketUrl: "wss://your.websocket.url" # only needed if streamMethod is "websocket"
 ```
 
 or via json:
@@ -24,7 +26,12 @@ or via json:
 ``` json
 {
     "video": true,
-    "audio": false
+    "audio": false,
+    "mirrorX": false,
+    "mirrorY": true,
+    "rotate": 90,
+    "streamMethod": "webrtc", // or "websocket"
+    "websocketUrl": "wss://your.websocket.url" // only needed if streamMethod is "websocket"
 }
 ```
 
@@ -32,4 +39,6 @@ The flip parameters will flip the video horizontally or vertically.
 
 ## Problems
 
-It is recommended to use Chrome in station mode. Firefox might have some restrictions, but any browser with WebRTC support should support the client-side viewing.
+- If webrtc is selected as the stream method, it is recommended to use Chrome in station mode. Firefox might have some restrictions, but any browser with WebRTC support should support the client-side viewing.
+
+- When using websocket for streaming, the station window must be open in the foreground, otherwise the stream will not be sent. This is a limitation of the WebSocket API and the browser's handling of background tabs.
