@@ -1,5 +1,6 @@
 let currentStream = null;
 let currentCameraId = null;
+let isListingCameras = false; // Prevent multiple simultaneous calls
 
 function applyVideoTransform(videoElement, settings) {
   videoElement.style.transform = `scaleX(${
@@ -12,13 +13,21 @@ function applyVideoTransform(videoElement, settings) {
 }
 
 async function listCameras() {
+  if (isListingCameras) {
+    return;
+  }
+
+  isListingCameras = true;
+
   try {
     const cameraSelect = document.getElementById("camera-select");
-    cameraSelect.innerHTML = "";
+    
+    // Clear all existing options
+    cameraSelect.innerHTML = '';
+    cameraSelect.style.display = 'none'; // Hide while updating
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
       console.log("enumerateDevices() not supported.");
-      cameraSelect.style.display = "none";
       return;
     }
 
@@ -37,7 +46,9 @@ async function listCameras() {
     });
 
     // Only show if we have multiple cameras
-    cameraSelect.style.display = videoDevices.length > 1 ? "inline-block" : "none";
+    if (videoDevices.length > 1) {
+      cameraSelect.style.display = 'inline-block';
+    }
 
     // Check if saved camera is in the list of available devices
     if (currentCameraId) {
@@ -53,6 +64,8 @@ async function listCameras() {
     }
   } catch (err) {
     console.error("Error listing cameras:", err);
+  } finally {
+    isListingCameras = false;
   }
 }
 
@@ -143,13 +156,17 @@ function startServer() {
   } else {
     startStreamWithCamera();
   }
-
-  // Handle camera selection change
-  document.getElementById("camera-select").addEventListener("change", function () {
-    if (this.value) {
-      startStreamWithCamera(this.value);
-    }
-  });
+  
+  // Handle camera selection change - ensure event listener is only added once
+  const cameraSelect = document.getElementById('camera-select');
+  if (!cameraSelect.hasAttribute('data-listener-added')) {
+    cameraSelect.addEventListener('change', function() {
+      if (this.value) {
+        startStreamWithCamera(this.value);
+      }
+    });
+    cameraSelect.setAttribute('data-listener-added', 'true');
+  }
 }
 
 function startClient() {
