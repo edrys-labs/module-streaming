@@ -1,6 +1,18 @@
 let currentStream = null;
 let currentCameraId = null;
-let isListingCameras = false; // Prevent multiple simultaneous calls
+let isListingCameras = false;
+
+// Helper function to get unique storage key for camera selection per stream
+function getCameraStorageKey() {
+  const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
+  return `selectedCameraId_${streamName}`;
+}
+
+// Function to reload only this specific stream instance
+function reloadThisStream() {
+  const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
+  Edrys.sendMessage('reload', { targetStream: streamName });
+}
 
 function applyVideoTransform(videoElement, settings) {
   videoElement.style.transform = `scaleX(${
@@ -13,30 +25,21 @@ function applyVideoTransform(videoElement, settings) {
 }
 
 async function listCameras() {
-  if (isListingCameras) {
-    return;
-  }
-
+  if (isListingCameras) return;
   isListingCameras = true;
 
   try {
     const cameraSelect = document.getElementById("camera-select");
-    
-    // Clear all existing options
     cameraSelect.innerHTML = '';
-    cameraSelect.style.display = 'none'; // Hide while updating
+    cameraSelect.style.display = 'none';
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-      console.log("enumerateDevices() not supported.");
+    if (!navigator.mediaDevices?.enumerateDevices) {
       return;
     }
 
-    currentCameraId = sessionStorage.getItem("selectedCameraId");
-
+    currentCameraId = sessionStorage.getItem(getCameraStorageKey());
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(
-      (device) => device.kind === "videoinput"
-    );
+    const videoDevices = devices.filter(device => device.kind === "videoinput");
 
     videoDevices.forEach((device, index) => {
       const option = document.createElement("option");
@@ -45,20 +48,16 @@ async function listCameras() {
       cameraSelect.appendChild(option);
     });
 
-    // Only show if we have multiple cameras
     if (videoDevices.length > 1) {
       cameraSelect.style.display = 'inline-block';
     }
 
-    // Check if saved camera is in the list of available devices
     if (currentCameraId) {
-      const deviceExists = videoDevices.some(
-        (device) => device.deviceId === currentCameraId
-      );
+      const deviceExists = videoDevices.some(device => device.deviceId === currentCameraId);
       if (deviceExists) {
         cameraSelect.value = currentCameraId;
       } else {
-        sessionStorage.removeItem("selectedCameraId");
+        sessionStorage.removeItem(getCameraStorageKey());
         currentCameraId = null;
       }
     }
@@ -72,92 +71,93 @@ async function listCameras() {
 function startStreamWithCamera(deviceId = null) {
   const videoElement = document.getElementById("video");
   const loaderElement = document.getElementById("loader");
-
   const streamMethod = Edrys.module.stationConfig?.streamMethod || "webrtc";
   const websocketUrl = Edrys.module.stationConfig?.websocketUrl || "";
-
+  const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
+  
   applyVideoTransform(videoElement, Edrys.module.stationConfig);
 
-  if (currentStream) {
-    if (typeof currentStream.stop === "function") {
-      currentStream.stop();
+  const startNewStream = async () => {
+    if (deviceId && currentCameraId !== deviceId) {
+      currentCameraId = deviceId;
+      sessionStorage.setItem(getCameraStorageKey(), deviceId);
     }
-    currentStream = null;
-  }
 
-  // If this is a camera change, save the selection
-  if (deviceId) {
-    // If the camera ID changed, notify clients to reconnect
-    if (currentCameraId !== deviceId) {
-      Edrys.sendMessage("camera-changed", true);
-    }
-    currentCameraId = deviceId;
-    sessionStorage.setItem("selectedCameraId", deviceId);
-  }
-
-  // Constraints based on device ID and config
-  const constraints = {
-    video:
-      Edrys.module.stationConfig?.video === undefined
-        ? deviceId
-          ? { deviceId: { exact: deviceId } }
-          : true
+    const constraints = {
+      video: Edrys.module.stationConfig?.video === undefined
+        ? deviceId ? { deviceId: { exact: deviceId } } : true
         : deviceId && Edrys.module.stationConfig?.video
-        ? { deviceId: { exact: deviceId } }
-        : Edrys.module.stationConfig?.video,
-    audio:
-      Edrys.module.stationConfig?.audio === undefined
-        ? true
-        : Edrys.module.stationConfig?.audio,
-  };
+        ? { deviceId: { exact: deviceId } } : Edrys.module.stationConfig?.video,
+      audio: Edrys.module.stationConfig?.audio === undefined
+        ? true : Edrys.module.stationConfig?.audio,
+    };
 
-  navigator.mediaDevices
-    .getUserMedia(constraints)
-    .then(async (stream) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       videoElement.srcObject = stream;
       videoElement.autoplay = true;
       loaderElement.classList.add("hidden");
 
-      currentStream = await Edrys.sendStream(stream, {
-        method: streamMethod,
-        websocketUrl: websocketUrl,
-      });
-    })
-    .catch((error) => {
+      if (currentStream && typeof currentStream.updateStream === "function") {
+        // Update existing stream server with new stream
+        currentStream.updateStream(stream);
+      } else {
+        // Create new stream server
+        currentStream = await Edrys.sendStream(stream, {
+          method: streamMethod,
+          websocketUrl: websocketUrl,
+          streamName: streamName,
+        });
+      }
+
+      // Show stream info
+      document.getElementById("stream-info").innerHTML = `
+        <div>Stream: ${streamName}</div>
+        <div>Room: ${Edrys.liveUser?.room}</div>
+      `;
+      document.getElementById("stream-info").style.display = 'block';
+
+    } catch (error) {
       console.error(error);
       loaderElement.querySelector(".loader-text").textContent = "Error connecting to camera";
-    });
+    }
+  };
+
+  if (currentStream && deviceId && currentCameraId !== deviceId) {
+    // Just switching cameras, don't stop the stream server
+    startNewStream();
+  } else if (currentStream && (!deviceId || currentCameraId === deviceId)) {
+    // Stopping and restarting (e.g., on reload)
+    if (typeof currentStream.stop === "function") {
+      currentStream.stop();
+    }
+    currentStream = null;
+    setTimeout(startNewStream, 500);
+  } else {
+    startNewStream();
+  }
 }
 
 function startServer() {
-  // Initialize by listing cameras first
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    navigator.mediaDevices
-      .getUserMedia({ video: true })
-      .then((tempStream) => {
-        // Stop temporary stream and list cameras
-        tempStream.getTracks().forEach((track) => track.stop());
-
+  if (navigator.mediaDevices?.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(tempStream => {
+        tempStream.getTracks().forEach(track => track.stop());
+        
         listCameras().then(() => {
           const cameraSelect = document.getElementById("camera-select");
-          if (currentCameraId) {
-            startStreamWithCamera(currentCameraId);
-          } else if (cameraSelect.options.length > 0) {
-            startStreamWithCamera(cameraSelect.options[0].value);
-          } else {
-            startStreamWithCamera(); // No specific camera, use default
-          }
+          const startWithDevice = currentCameraId || 
+            (cameraSelect.options.length > 0 ? cameraSelect.options[0].value : null);
+          startStreamWithCamera(startWithDevice);
         });
       })
-      .catch((err) => {
-        console.log("Initial camera access denied:", err);
-        startStreamWithCamera(); // Start with default camera
+      .catch(err => {
+        startStreamWithCamera();
       });
   } else {
     startStreamWithCamera();
   }
   
-  // Handle camera selection change - ensure event listener is only added once
   const cameraSelect = document.getElementById('camera-select');
   if (!cameraSelect.hasAttribute('data-listener-added')) {
     cameraSelect.addEventListener('change', function() {
@@ -176,27 +176,34 @@ function startClient() {
   const streamMethod = Edrys.module.stationConfig?.streamMethod || "webrtc";
   const websocketUrl = Edrys.module.stationConfig?.websocketUrl || "";
 
-  Edrys.onStream(
-    (stream, settings) => {
-      videoElement.srcObject = stream;
-      applyVideoTransform(videoElement, settings);
+  // Add delay before starting client to allow server to initialize
+  setTimeout(() => {
+    Edrys.onStream(
+      (stream, settings, metadata) => {
+        videoElement.srcObject = stream;
+        applyVideoTransform(videoElement, settings);
 
-      videoElement.onloadeddata = function () {
-        loaderElement.classList.add("hidden");
-      };
+        videoElement.onloadeddata = () => {
+          loaderElement.classList.add("hidden");
+        };
 
-      // Timeout in case the stream doesn't load properly
-      setTimeout(() => {
-        loaderElement.classList.add("hidden");
-      }, 10000);
-    },
-    {
-      method: streamMethod,
-      websocketUrl: websocketUrl,
-    }
-  ).then((stream) => {
-    currentStream = stream;
-  });
+        if (metadata?.streamName) {
+          document.getElementById("stream-name").textContent = `Stream: ${metadata.streamName}`;
+          document.getElementById("stream-info").style.display = 'block';
+        }
+
+        setTimeout(() => {
+          loaderElement.classList.add("hidden");
+        }, 10000);
+      },
+      {
+        method: streamMethod,
+        websocketUrl: websocketUrl,
+      }
+    ).then(streamClient => {
+      currentStream = streamClient;
+    });
+  }, 2000);
 }
 
 Edrys.onReady(() => {
@@ -207,25 +214,15 @@ Edrys.onReady(() => {
   }
 });
 
-Edrys.onMessage(({ subject }) => {
+Edrys.onMessage(({ subject, body }) => {
   if (subject === "reload") {
-    setTimeout(
-      () => {
+    const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
+    
+    // Only reload if this message targets this specific stream instance
+    if (body === true || (body?.targetStream && body.targetStream === streamName)) {
+      setTimeout(() => {
         window.location.reload();
-      },
-      Edrys.role === "station" ? 100 : 1000
-    );
-  } else if (
-    subject === "camera-changed" &&
-    Edrys.role !== "station" &&
-    currentStream
-  ) {
-    // Reconnect if the station changed cameras
-    setTimeout(() => {
-      if (typeof currentStream.stop === "function") {
-        currentStream.stop();
-      }
-      startClient();
-    }, 1000);
+      }, Edrys.role === "station" ? 100 : 1000);
+    }
   }
 });

@@ -14,6 +14,10 @@
       name="module-config" 
       content="{
         'stationConfig': {
+          'streamName': {
+            'type': 'string',
+            'hint': 'Unique name for this stream',
+          },
           'video': {
             'type': boolean,
             'hint': 'if true, the station will stream video',
@@ -46,7 +50,6 @@
       }" 
     />
 
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://edrys-labs.github.io/module/edrys.js"></script>
 
     <script
@@ -70,12 +73,16 @@
         <div class="loader-text">Connecting to stream... (This may take a moment)</div>
       </div>
       <button
-        onclick="Edrys.sendMessage('reload', true)"
-        title="force reload of the camera"
+        onclick="reloadThisStream()"
+        title="force reload of this camera stream"
       >
         ⟳
       </button>
       <select id="camera-select" title="Select camera"></select>
+      
+      <div id="stream-info" class="stream-info">
+        <div id="stream-name"></div>
+      </div>
     </div>
   </body>
 </html>
