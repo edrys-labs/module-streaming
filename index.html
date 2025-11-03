@@ -18,6 +18,11 @@
             'type': 'string',
             'hint': 'Unique name for this stream',
           },
+          'streamQuality': {
+            'type': 'radio-button',
+            'options': ['low', 'medium', 'high'],
+            'hint': 'Quality of the stream (affects bandwidth usage)',
+          },
           'video': {
             'type': boolean,
             'hint': 'if true, the station will stream video',
