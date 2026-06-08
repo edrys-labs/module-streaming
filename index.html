@@ -24,31 +24,31 @@
             'hint': 'Quality of the stream (affects bandwidth usage)',
           },
           'video': {
-            'type': boolean,
+            'type': 'boolean',
             'hint': 'if true, the station will stream video',
           },
           'audio': {
-            'type': boolean,
+            'type': 'boolean',
             'hint': 'if true, the station will stream audio',
           },
           'mirrorX': {
-            'type': boolean,
+            'type': 'boolean',
             'hint': 'Mirror the video horizontally',
           },
           'mirrorY': {
-            'type': boolean,
+            'type': 'boolean',
             'hint': 'Mirror the video vertically',
           },
           'rotate': {
-            'type': number,
+            'type': 'number',
             'hint': 'Rotate the video',
           },
           'streamMethod': {
-            'type': radio-button,
+            'type': 'radio-button',
             'options': ['webrtc', 'websocket'],
           },
           'websocketUrl': {
-            'type': string,
+            'type': 'string',
             'hint': 'WebSocket server URL (needed for websocket method)',
           }
         }

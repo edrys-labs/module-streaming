@@ -13,9 +13,14 @@ function getCameraStorageKey() {
   return `selectedCameraId_${streamName}`;
 }
 
-// Function to reload only this specific stream instance
 function reloadThisStream() {
-  Edrys.sendMessage('reload', { targetStream: getStreamName() });
+  if (Edrys.role === 'station') {
+    // Station restarts the source — notify all viewers on this stream.
+    Edrys.sendMessage('reload', { targetStream: getStreamName() });
+  } else {
+    // Viewer asks the station to restart the stream for everyone.
+    Edrys.sendMessage('stream-restart-request', { targetStream: getStreamName() });
+  }
 }
 
 function applyVideoTransform(videoElement, settings) {
@@ -133,13 +138,17 @@ function startStreamWithCamera(deviceId = null) {
         });
       }
 
-      // Show stream info
-      document.getElementById("stream-info").innerHTML = `
-        <div>Stream: ${streamName}</div>
-        <div>Quality: ${streamQuality.toUpperCase()}</div>
-        <div>Room: ${Edrys.liveUser?.room}</div>
-      `;
-      document.getElementById("stream-info").style.display = 'block';
+      // stream-info overlay
+      const streamInfo = document.getElementById("stream-info");
+      document.getElementById("stream-name").textContent = `Stream: ${streamName}`;
+      let qualityEl = streamInfo.querySelector(".stream-quality");
+      if (!qualityEl) {
+        qualityEl = document.createElement("div");
+        qualityEl.className = "stream-quality";
+        streamInfo.appendChild(qualityEl);
+      }
+      qualityEl.textContent = `Quality: ${streamQuality.toUpperCase()}`;
+      streamInfo.style.display = 'block';
 
     } catch (error) {
       console.error(error);
@@ -240,13 +249,19 @@ Edrys.onReady(() => {
 });
 
 Edrys.onMessage(({ subject, body }) => {
+  const streamName = getStreamName();
+
   if (subject === "reload") {
-    // Only reload if this message targets this specific stream instance
-    const streamName = getStreamName();
     if (body === true || (body?.targetStream && body.targetStream === streamName)) {
       setTimeout(() => {
         window.location.reload();
       }, Edrys.role === "station" ? 100 : 1000);
+    }
+  }
+
+  if (subject === "stream-restart-request" && Edrys.role === "station") {
+    if (body?.targetStream === streamName) {
+      startStreamWithCamera(currentCameraId);
     }
   }
 });
