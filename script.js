@@ -28,66 +28,17 @@ function applyVideoTransform(videoElement, settings) {
   }deg)`;
 }
 
-// Helper function to get video constraints based on quality setting
+const QUALITY_CONSTRAINTS = {
+  low:    { width: { ideal: 640 },  height: { ideal: 480 },  frameRate: { ideal: 15 } },
+  medium: { width: { ideal: 1280 }, height: { ideal: 720 },  frameRate: { ideal: 24 } },
+  high:   { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+};
+
 function getVideoConstraints(deviceId, quality) {
-  let baseConstraints = deviceId ? { deviceId: { exact: deviceId } } : true;
-  
-  if (typeof baseConstraints === 'object' && baseConstraints !== null) {
-    // Apply quality settings to existing constraints
-    switch (quality) {
-      case 'low':
-        return {
-          ...baseConstraints,
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 15 }
-        };
-      case 'medium':
-        return {
-          ...baseConstraints,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 24 }
-        };
-      case 'high':
-        return {
-          ...baseConstraints,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 }
-        };
-      default:
-        return baseConstraints;
-    }
-  }
-  
-  // If baseConstraints is just true or false, apply quality directly
-  if (baseConstraints === true) {
-    switch (quality) {
-      case 'low':
-        return {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 15 }
-        };
-      case 'medium':
-        return {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 24 }
-        };
-      case 'high':
-        return {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 }
-        };
-      default:
-        return true;
-    }
-  }
-  
-  return baseConstraints;
+  const qualityConstraints = QUALITY_CONSTRAINTS[quality] || {};
+  return deviceId
+    ? { deviceId: { exact: deviceId }, ...qualityConstraints }
+    : { ...qualityConstraints };
 }
 
 async function listCameras() {
@@ -150,17 +101,19 @@ function startStreamWithCamera(deviceId = null) {
       sessionStorage.setItem(getCameraStorageKey(), deviceId);
     }
 
-    const videoConstraints = Edrys.module.stationConfig?.video === undefined
-      ? getVideoConstraints(deviceId, streamQuality)
-      : deviceId && Edrys.module.stationConfig?.video
-        ? getVideoConstraints(deviceId, streamQuality)
-        : Edrys.module.stationConfig?.video;
+    const videoOff = Edrys.module.stationConfig?.video === false;
+    const audioOff = Edrys.module.stationConfig?.audio === false;
 
     const constraints = {
-      video: videoConstraints,
-      audio: Edrys.module.stationConfig?.audio === undefined
-        ? true : Edrys.module.stationConfig?.audio,
+      video: videoOff ? false : getVideoConstraints(deviceId, streamQuality),
+      audio: audioOff ? false : (Edrys.module.stationConfig?.audio ?? true),
     };
+
+    if (!constraints.video && !constraints.audio) {
+      loaderElement.querySelector(".loader-text").textContent =
+        "Both video and audio are disabled in station config";
+      return;
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
