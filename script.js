@@ -2,16 +2,20 @@ let currentStream = null;
 let currentCameraId = null;
 let isListingCameras = false;
 
+// Resolve the configured stream name (shared default across server/client).
+function getStreamName() {
+  return Edrys.module.stationConfig?.streamName || "Camera 1";
+}
+
 // Helper function to get unique storage key for camera selection per stream
 function getCameraStorageKey() {
-  const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
+  const streamName = getStreamName();
   return `selectedCameraId_${streamName}`;
 }
 
 // Function to reload only this specific stream instance
 function reloadThisStream() {
-  const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
-  Edrys.sendMessage('reload', { targetStream: streamName });
+  Edrys.sendMessage('reload', { targetStream: getStreamName() });
 }
 
 function applyVideoTransform(videoElement, settings) {
@@ -243,34 +247,35 @@ function startClient() {
   const streamMethod = Edrys.module.stationConfig?.streamMethod || "webrtc";
   const websocketUrl = Edrys.module.stationConfig?.websocketUrl || "";
 
-  // Add delay before starting client to allow server to initialize
-  setTimeout(() => {
-    Edrys.onStream(
-      (stream, settings, metadata) => {
-        videoElement.srcObject = stream;
-        applyVideoTransform(videoElement, settings);
+  // Give-up timer: surface an actionable failure if no stream arrives within a
+  // generous window. The API drives connection via its own ready handshake.
+  const giveUpTimeout = setTimeout(() => {
+    loaderElement.querySelector(".loader-text").textContent =
+      "No stream available yet. Press ⟳ to retry.";
+  }, 20000);
 
-        videoElement.onloadeddata = () => {
-          loaderElement.classList.add("hidden");
-        };
+  Edrys.onStream(
+    (stream, settings, metadata) => {
+      clearTimeout(giveUpTimeout);
+      videoElement.srcObject = stream;
+      applyVideoTransform(videoElement, settings);
 
-        if (metadata?.streamName) {
-          document.getElementById("stream-name").textContent = `Stream: ${metadata.streamName}`;
-          document.getElementById("stream-info").style.display = 'block';
-        }
+      videoElement.onloadeddata = () => {
+        loaderElement.classList.add("hidden");
+      };
 
-        setTimeout(() => {
-          loaderElement.classList.add("hidden");
-        }, 10000);
-      },
-      {
-        method: streamMethod,
-        websocketUrl: websocketUrl,
+      if (metadata?.streamName) {
+        document.getElementById("stream-name").textContent = `Stream: ${metadata.streamName}`;
+        document.getElementById("stream-info").style.display = 'block';
       }
-    ).then(streamClient => {
-      currentStream = streamClient;
-    });
-  }, 2000);
+    },
+    {
+      method: streamMethod,
+      websocketUrl: websocketUrl,
+    }
+  ).then(streamClient => {
+    currentStream = streamClient;
+  });
 }
 
 Edrys.onReady(() => {
@@ -283,9 +288,8 @@ Edrys.onReady(() => {
 
 Edrys.onMessage(({ subject, body }) => {
   if (subject === "reload") {
-    const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
-    
     // Only reload if this message targets this specific stream instance
+    const streamName = getStreamName();
     if (body === true || (body?.targetStream && body.targetStream === streamName)) {
       setTimeout(() => {
         window.location.reload();
