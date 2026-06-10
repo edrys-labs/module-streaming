@@ -202,7 +202,13 @@ function startServer() {
   }
 }
 
+let clientStarted = false;
+
 function startClient() {
+  // Guard against double-init (module may mount more than once).
+  if (clientStarted) return;
+  clientStarted = true;
+
   const videoElement = document.getElementById("video");
   const loaderElement = document.getElementById("loader");
 
