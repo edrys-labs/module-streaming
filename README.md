@@ -58,5 +58,3 @@ The flip parameters (mirrorX, mirrorY) will flip the video stream on the X or Y 
 ## Known Issues
 
 - If webrtc is selected as the stream method, it is recommended to use Chrome in station mode. Firefox might have some restrictions, but any browser with WebRTC support should support the client-side viewing.
-
-- When using websocket for streaming, the station window must be open in the foreground, otherwise the stream will not be sent. This is a limitation of the WebSocket API and the browser's handling of background tabs.
