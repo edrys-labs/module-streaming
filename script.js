@@ -122,6 +122,13 @@ function startStreamWithCamera(deviceId = null) {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Release the previous camera capture before swapping in the new one.
+      const previous = videoElement.srcObject;
+      if (previous && previous !== stream && typeof previous.getTracks === "function") {
+        previous.getTracks().forEach(track => track.stop());
+      }
+
       videoElement.srcObject = stream;
       videoElement.autoplay = true;
       loaderElement.classList.add("hidden");
