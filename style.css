@@ -32,9 +32,19 @@ button {
   top: 22px;
   left: 22px;
   z-index: 999;
-  padding-left: 15px;
-  padding-right: 15px;
-  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0 15px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  font-size: 20px;
+  line-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: rgba(0, 0, 0, 0.9);
+  border-color: white;
 }
 
 .loader-container {

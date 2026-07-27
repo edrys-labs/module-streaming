@@ -15,11 +15,11 @@ function getCameraStorageKey() {
 
 function reloadThisStream() {
   if (Edrys.role === 'station') {
-    // Station restarts the source — notify all viewers on this stream.
-    Edrys.sendMessage('reload', { targetStream: getStreamName() });
+    // Re-acquire the camera; updateStream pushes it to every viewer.
+    startStreamWithCamera(currentCameraId);
   } else {
-    // Viewer asks the station to restart the stream for everyone.
-    Edrys.sendMessage('stream-restart-request', { targetStream: getStreamName() });
+    // Rebuild only this viewer's connection.
+    restartClient();
   }
 }
 
@@ -163,19 +163,8 @@ function startStreamWithCamera(deviceId = null) {
     }
   };
 
-  if (currentStream && deviceId && currentCameraId !== deviceId) {
-    // Just switching cameras, don't stop the stream server
-    startNewStream();
-  } else if (currentStream && (!deviceId || currentCameraId === deviceId)) {
-    // Stopping and restarting (e.g., on reload)
-    if (typeof currentStream.stop === "function") {
-      currentStream.stop();
-    }
-    currentStream = null;
-    setTimeout(startNewStream, 500);
-  } else {
-    startNewStream();
-  }
+  // Never stop the server: its peer ID can't be reclaimed right away.
+  startNewStream();
 }
 
 function startServer() {
@@ -210,6 +199,22 @@ function startServer() {
 }
 
 let clientStarted = false;
+let clientGiveUpTimeout = null;
+
+// Tear down this viewer's own connection and reconnect. The client peer ID is
+// random, so there is nothing to reclaim.
+function restartClient() {
+  if (currentStream?.stop) currentStream.stop();
+  currentStream = null;
+  clientStarted = false;
+
+  const loaderElement = document.getElementById("loader");
+  loaderElement.querySelector(".loader-text").textContent =
+    "Reconnecting to stream...";
+  loaderElement.classList.remove("hidden");
+
+  startClient();
+}
 
 function startClient() {
   // Guard against double-init (module may mount more than once).
@@ -224,10 +229,12 @@ function startClient() {
 
   // Give-up timer: surface an actionable failure if no stream arrives within a
   // generous window. The API drives connection via its own ready handshake.
+  clearTimeout(clientGiveUpTimeout);
   const giveUpTimeout = setTimeout(() => {
     loaderElement.querySelector(".loader-text").textContent =
       "No stream available yet. Press ⟳ to retry.";
   }, 20000);
+  clientGiveUpTimeout = giveUpTimeout;
 
   Edrys.onStream(
     (stream, settings, metadata) => {
