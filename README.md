@@ -6,7 +6,9 @@ Import the module via:
 
 `https://edrys-labs.github.io/module-streaming/index.html`
 
+<!--
 ![The station's view: status badge, reconnect button, camera picker, and the stream name and quality](screenshot.png)
+-->
 
 ## Roles
 
@@ -110,8 +112,8 @@ The flip parameters (mirrorX, mirrorY) will flip the video stream on the X or Y 
 
 - **Station:** needs a browser with camera access, which works only over HTTPS. Chrome is recommended.
 - **Viewers:** any browser with WebRTC support can watch a `webrtc` stream.
-- **The `websocket` method** needs `MediaRecorder` and `MediaSource`. Its viewers also need
-  `HTMLMediaElement.captureStream()`, which Firefox does not offer, so use Chrome or Edge there.
+- **The `websocket` method** needs `MediaRecorder` and `MediaSource`, and its viewers need
+  `HTMLMediaElement.captureStream()`. Chrome, Edge and Firefox have them. Safari is not supported for this method.
 
 ## License
 
