@@ -106,12 +106,13 @@ function startStreamWithCamera(deviceId = null) {
       sessionStorage.setItem(getCameraStorageKey(), deviceId);
     }
 
-    const videoOff = Edrys.module.stationConfig?.video === false;
-    const audioOff = Edrys.module.stationConfig?.audio === false;
+    // Same defaults as the settings form: video on, audio off.
+    const videoOn = Edrys.module.stationConfig?.video !== false;
+    const audioOn = Edrys.module.stationConfig?.audio === true;
 
     const constraints = {
-      video: videoOff ? false : getVideoConstraints(deviceId, streamQuality),
-      audio: audioOff ? false : (Edrys.module.stationConfig?.audio ?? true),
+      video: videoOn ? getVideoConstraints(deviceId, streamQuality) : false,
+      audio: audioOn,
     };
 
     if (!constraints.video && !constraints.audio) {

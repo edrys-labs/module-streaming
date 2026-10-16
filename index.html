@@ -16,20 +16,23 @@
         'stationConfig': {
           'streamName': {
             'type': 'string',
-            'hint': 'Unique name for this stream',
+            'hint': 'Unique name for this stream (default: Camera 1)',
           },
           'streamQuality': {
             'type': 'radio-button',
-            'options': ['low', 'medium', 'high'],
+            'options': ['medium', 'low', 'high'],
+            'default': 'medium',
             'hint': 'Quality of the stream (affects bandwidth usage)',
           },
           'video': {
             'type': 'boolean',
-            'hint': 'if true, the station will stream video',
+            'default': true,
+            'hint': 'Stream the camera',
           },
           'audio': {
             'type': 'boolean',
-            'hint': 'if true, the station will stream audio',
+            'default': false,
+            'hint': 'Stream the microphone',
           },
           'mirrorX': {
             'type': 'boolean',
@@ -41,11 +44,12 @@
           },
           'rotate': {
             'type': 'number',
-            'hint': 'Rotate the video',
+            'hint': 'Rotate the video by degrees (0, 90, 180, 270)',
           },
           'streamMethod': {
             'type': 'radio-button',
             'options': ['webrtc', 'websocket'],
+            'hint': 'webrtc (default, peer to peer) or websocket (relay, needs websocketUrl)',
           },
           'websocketUrl': {
             'type': 'string',

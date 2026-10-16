@@ -12,6 +12,20 @@ You can modify the module station settings via the configuration form:
 
 <img src="./config-form.png" alt="Module Configuration Form" width="400">
 
+Every setting is optional. Without a value, the module uses these defaults:
+
+| Setting | Default | Values |
+|---------|---------|--------|
+| `streamName` | `Camera 1` | any text, unique per station |
+| `streamQuality` | `medium` | `low` (640×480, 15 fps), `medium` (1280×720, 24 fps), `high` (1920×1080, 30 fps) |
+| `video` | `true` | `true` / `false`: stream the camera |
+| `audio` | `false` | `true` / `false`: stream the microphone |
+| `mirrorX`, `mirrorY` | `false` | `true` / `false` |
+| `rotate` | `0` | degrees: `0`, `90`, `180`, `270` |
+| `streamMethod` | `webrtc` | `webrtc` or `websocket` |
+| `websocketUrl` | (none) | relay URL, needed for `websocket` |
+| `peerServerConfig` | PeerJS cloud | PeerJS server settings (YAML/JSON only) |
+
 Or you can set the parameters manually in the station configuration via yaml:
 
 ``` yaml
@@ -43,7 +57,7 @@ or via json:
     "mirrorY": true,
     "rotate": 90,
     "streamMethod": "webrtc",
-    "websocketUrl": "wss://your.websocket.url" 
+    "websocketUrl": "wss://your.websocket.url",
     "peerServerConfig": {
         "host": "your.peer.server",
         "port": 443,
