@@ -35,29 +35,30 @@ function readConfig() {
 
 const $ = (id) => document.getElementById(id);
 
+function setBadge(state, text) {
+  const badge = $("status");
+  badge.className = `badge ${state}`;
+  badge.textContent = text;
+}
+
 // One overlay for every state. An error stops the spinner.
 function showStatus(text, { error = false } = {}) {
   const loader = $("loader");
   loader.querySelector(".loader-text").textContent = text;
   loader.classList.toggle("error", error);
   loader.classList.remove("hidden");
+  setBadge(error ? "off" : "wait", error ? "no stream" : "connecting");
 }
 
 function hideStatus() {
   $("loader").classList.add("hidden");
+  setBadge("on", "live");
 }
 
 function showStreamInfo(name, quality) {
-  $("stream-name").textContent = `Stream: ${name}`;
-  const info = $("stream-info");
-  let qualityEl = info.querySelector(".stream-quality");
-  if (quality && !qualityEl) {
-    qualityEl = document.createElement("div");
-    qualityEl.className = "stream-quality";
-    info.appendChild(qualityEl);
-  }
-  if (quality) qualityEl.textContent = `Quality: ${quality.toUpperCase()}`;
-  info.style.display = "block";
+  $("stream-name").textContent = name;
+  document.querySelector("#stream-info .stream-quality").textContent = quality || "";
+  $("stream-info").hidden = false;
 }
 
 function applyVideoTransform(videoElement, settings) {
@@ -117,7 +118,7 @@ function getVideoConstraints(deviceId) {
 async function listCameras() {
   const cameraSelect = $("camera-select");
   cameraSelect.innerHTML = "";
-  cameraSelect.style.display = "none";
+  cameraSelect.hidden = true;
 
   const devices = await navigator.mediaDevices.enumerateDevices();
   const cameras = devices.filter(device => device.kind === "videoinput");
@@ -129,9 +130,7 @@ async function listCameras() {
     cameraSelect.appendChild(option);
   });
 
-  if (cameras.length > 1) {
-    cameraSelect.style.display = "inline-block";
-  }
+  cameraSelect.hidden = cameras.length < 2;
 
   const stored = sessionStorage.getItem(cameraStorageKey());
   if (stored && cameras.some(device => device.deviceId === stored)) {
@@ -204,6 +203,7 @@ async function startStreamWithCamera(deviceId = currentCameraId) {
   cameraLost = false;
   watchForLostTracks(stream, seq);
   hideStatus();
+  if (!serverPromise) setBadge("wait", "starting"); // live once the server is up
 
   try {
     if (serverPromise) {
@@ -220,10 +220,11 @@ async function startStreamWithCamera(deviceId = currentCameraId) {
   } catch (error) {
     console.error(error);
     serverPromise = null; // the next start tries again
-    if (seq === startSeq) showStatus("Could not start the stream. Press ⟳ to retry.", { error: true });
+    if (seq === startSeq) showStatus("Could not start the stream. Press the reconnect button to retry.", { error: true });
     return;
   }
 
+  if (seq === startSeq) setBadge("on", "live");
   showStreamInfo(cfg.streamName, cfg.streamQuality);
 }
 
@@ -286,12 +287,13 @@ function startClient() {
       restartClient();
       return;
     }
-    showStatus("No stream available yet. Press ⟳ to retry.", { error: true });
+    showStatus("No stream available yet. Press the reconnect button to retry.", { error: true });
   }, CLIENT_GIVE_UP_MS);
 
   clientPromise = Edrys.onStream(
     (stream, settings, metadata) => {
       if (seq !== clientSeq) return;
+      videoElement.muted = false; // the HTML mutes it for the station's preview
       videoElement.srcObject = stream;
       applyVideoTransform(videoElement, settings);
 
@@ -311,7 +313,7 @@ function startClient() {
     console.error(error);
     if (seq === clientSeq) {
       clearTimeout(clientGiveUpTimer);
-      showStatus("Could not connect to the stream. Press ⟳ to retry.", { error: true });
+      showStatus("Could not connect to the stream. Press the reconnect button to retry.", { error: true });
     }
     return null;
   });

@@ -61,36 +61,43 @@
 
     <script src="https://edrys-labs.github.io/module/edrys.js"></script>
 
-    <script
-      defer
-      src="https://edrys-labs.github.io/module/vendor/alpine.min.js"
-    ></script>
-
     <link
       rel="stylesheet"
       href="https://edrys-labs.github.io/module/vendor/water.min.css"
     />
-    
+    <link
+      rel="stylesheet"
+      href="https://edrys-labs.github.io/module/vendor/open-iconic/css/open-iconic.min.css"
+    />
+
     <script src="./script.js"></script>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div class="video-container">
-      <video id="video" style="width: 100%" autoplay controls></video>
+      <!-- muted until the script unmutes it for viewers: the station never plays its own microphone -->
+      <video id="video" autoplay muted playsinline controls></video>
       <div id="loader" class="loader-container">
         <div class="loader"></div>
         <div class="loader-text">Connecting to stream... (This may take a moment)</div>
       </div>
-      <button
-        id="reload-button"
-        title="force reload of this camera stream"
-      >
-        ⟳
-      </button>
-      <select id="camera-select" title="Select camera"></select>
-      
-      <div id="stream-info" class="stream-info">
-        <div id="stream-name"></div>
+
+      <div class="controls">
+        <span id="status" class="badge wait" role="status">connecting</span>
+        <button
+          id="reload-button"
+          type="button"
+          title="Reconnect stream"
+          aria-label="Reconnect stream"
+        >
+          <span class="oi" data-glyph="reload" aria-hidden="true"></span>
+        </button>
+        <select id="camera-select" title="Select camera" aria-label="Camera" hidden></select>
+      </div>
+
+      <div id="stream-info" class="stream-info" hidden>
+        <span id="stream-name"></span>
+        <span class="stream-quality"></span>
       </div>
     </div>
   </body>

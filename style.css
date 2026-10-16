@@ -1,11 +1,22 @@
+/* dark translucent overlays on the video, readable in both colour schemes */
+:root {
+  --overlay: rgba(0, 0, 0, 0.7);
+  --overlay-strong: rgba(0, 0, 0, 0.9);
+  --overlay-line: rgba(255, 255, 255, 0.4);
+  --overlay-text: #fff;
+  --gap: 0.75rem;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* full-bleed video instead of water.css's centred column */
 body {
   margin: 0;
   padding: 0;
   max-width: unset;
   height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
 }
 
@@ -18,61 +29,111 @@ body {
   align-items: center;
 }
 
+/* fill the frame at any source size, letterboxed */
 video {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
-button {
+/* top-left overlay bar: status, reconnect, camera picker */
+.controls {
   position: absolute;
-  top: 22px;
-  left: 22px;
-  z-index: 999;
-  padding: 0 15px;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  font-size: 20px;
-  line-height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 5px;
+  top: var(--gap);
+  left: var(--gap);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: small;
+}
+
+.controls button,
+.controls select {
+  margin: 0;
+  padding: 0.3rem 0.6rem;
+  background-color: var(--overlay);
+  color: var(--overlay-text);
+  border: 1px solid var(--overlay-line);
+  border-radius: 0.3rem;
   cursor: pointer;
 }
 
-button:hover {
-  background-color: rgba(0, 0, 0, 0.9);
-  border-color: white;
+.controls button:hover,
+.controls select:hover {
+  background-color: var(--overlay-strong);
+  border-color: var(--overlay-text);
+}
+
+/* the open list is drawn by the OS, often on white */
+.controls select option {
+  color: initial;
+  background-color: initial;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-weight: bold;
+  color: #fff;
+}
+/* dark enough for white text to clear WCAG AA */
+.badge.on {
+  background-color: #1f7a45;
+}
+.badge.off {
+  background-color: #b8384a;
+}
+.badge.wait {
+  background-color: #6b6b6b;
+}
+
+/* top-right pill, away from the native video controls */
+.stream-info {
+  position: absolute;
+  top: var(--gap);
+  right: var(--gap);
+  z-index: 20;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background-color: var(--overlay);
+  color: var(--overlay-text);
+  font-size: small;
+}
+
+.stream-quality {
+  opacity: 0.75;
 }
 
 .loader-container {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  z-index: 10;
+  padding: 1rem;
+  text-align: center;
+  background-color: var(--overlay);
+  color: var(--overlay-text);
 }
 
 .loader {
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid #3498db;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 1rem;
+  border: 0.3rem solid var(--overlay-line);
+  border-top-color: var(--overlay-text);
   border-radius: 50%;
-  width: 50px;
-  height: 50px;
   animation: spin 1s linear infinite;
-  margin-bottom: 20px;
 }
 
 .loader-text {
-  font-size: 18px;
+  font-size: 1.1rem;
 }
 
 /* an error needs action, nothing is loading */
@@ -81,37 +142,11 @@ button:hover {
 }
 
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
+  to {
     transform: rotate(360deg);
   }
 }
 
 .hidden {
-  display: none;
-}
-
-#camera-select {
-  position: absolute;
-  top: 22px;
-  left: 80px;
-  z-index: 999;
-  padding: 5px;
-  border: 1px solid;
-  display: none;
-}
-
-.stream-info {
-  position: absolute;
-  bottom: 22px;
-  left: 22px;
-  z-index: 999;
-  padding: 10px;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  border-radius: 5px;
-  font-size: 14px;
   display: none;
 }
