@@ -129,6 +129,7 @@ function startStreamWithCamera(deviceId = null) {
         previous.getTracks().forEach(track => track.stop());
       }
 
+      videoElement.muted = true; // station preview: never play our own microphone
       videoElement.srcObject = stream;
       videoElement.autoplay = true;
       loaderElement.classList.add("hidden");
@@ -200,10 +201,17 @@ function startServer() {
 
 let clientStarted = false;
 let clientGiveUpTimeout = null;
+let clientAutoRetried = false;
 
 // Tear down this viewer's own connection and reconnect. The client peer ID is
 // random, so there is nothing to reclaim.
 function restartClient() {
+  // Detach first: stopping the client ends its tracks, and Chrome then fires
+  // loadeddata on the ended stream, which would count as a first frame.
+  const videoElement = document.getElementById("video");
+  videoElement.onloadeddata = null;
+  videoElement.srcObject = null;
+
   if (currentStream?.stop) currentStream.stop();
   currentStream = null;
   clientStarted = false;
@@ -227,10 +235,16 @@ function startClient() {
   const streamMethod = Edrys.module.stationConfig?.streamMethod || "webrtc";
   const websocketUrl = Edrys.module.stationConfig?.websocketUrl || "";
 
-  // Give-up timer: surface an actionable failure if no stream arrives within a
-  // generous window. The API drives connection via its own ready handshake.
+  // Give-up timer: if no frame arrives within a generous window, reconnect once
+  // by ourselves, then ask the user. onStream only means the tracks are known;
+  // media may still never flow (e.g. ICE fails after signalling).
   clearTimeout(clientGiveUpTimeout);
   const giveUpTimeout = setTimeout(() => {
+    if (!clientAutoRetried) {
+      clientAutoRetried = true;
+      restartClient();
+      return;
+    }
     loaderElement.querySelector(".loader-text").textContent =
       "No stream available yet. Press ⟳ to retry.";
   }, 20000);
@@ -238,11 +252,12 @@ function startClient() {
 
   Edrys.onStream(
     (stream, settings, metadata) => {
-      clearTimeout(giveUpTimeout);
       videoElement.srcObject = stream;
       applyVideoTransform(videoElement, settings);
 
       videoElement.onloadeddata = () => {
+        clearTimeout(giveUpTimeout);
+        clientAutoRetried = false;
         loaderElement.classList.add("hidden");
       };
 
@@ -265,23 +280,5 @@ Edrys.onReady(() => {
     startServer();
   } else {
     startClient();
-  }
-});
-
-Edrys.onMessage(({ subject, body }) => {
-  const streamName = getStreamName();
-
-  if (subject === "reload") {
-    if (body === true || (body?.targetStream && body.targetStream === streamName)) {
-      setTimeout(() => {
-        window.location.reload();
-      }, Edrys.role === "station" ? 100 : 1000);
-    }
-  }
-
-  if (subject === "stream-restart-request" && Edrys.role === "station") {
-    if (body?.targetStream === streamName) {
-      startStreamWithCamera(currentCameraId);
-    }
   }
 });
