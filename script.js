@@ -1,26 +1,63 @@
-let currentStream = null;
-let currentCameraId = null;
-let isListingCameras = false;
+// Same defaults as the settings form (see module-config in index.html).
+const DEFAULTS = {
+  streamName: "Camera 1",
+  streamQuality: "medium",
+  video: true,
+  audio: false,
+  mirrorX: false,
+  mirrorY: false,
+  rotate: 0,
+  streamMethod: "webrtc",
+  websocketUrl: "",
+};
 
-// Resolve the configured stream name (shared default across server/client).
-function getStreamName() {
-  return Edrys.module.stationConfig?.streamName || "Camera 1";
+const QUALITY_CONSTRAINTS = {
+  low:    { width: { ideal: 640 },  height: { ideal: 480 },  frameRate: { ideal: 15 } },
+  medium: { width: { ideal: 1280 }, height: { ideal: 720 },  frameRate: { ideal: 24 } },
+  high:   { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+};
+
+// How long the station waits before it re-acquires a lost camera.
+const CAMERA_RETRY_MS = 3000;
+// How long a viewer waits for the first frame before it reconnects.
+const CLIENT_GIVE_UP_MS = 20000;
+
+let cfg = DEFAULTS;
+
+// The station config, with the defaults for every value that is not set. The
+// form saves '' for an untouched text field; that counts as not set.
+function readConfig() {
+  const raw = Edrys.module.stationConfig;
+  const given = raw && typeof raw === "object" ? raw : {};
+  const set = Object.entries(given).filter(([, value]) => value !== "" && value != null);
+  return { ...DEFAULTS, ...Object.fromEntries(set) };
 }
 
-// Helper function to get unique storage key for camera selection per stream
-function getCameraStorageKey() {
-  const streamName = getStreamName();
-  return `selectedCameraId_${streamName}`;
+const $ = (id) => document.getElementById(id);
+
+// One overlay for every state. An error stops the spinner.
+function showStatus(text, { error = false } = {}) {
+  const loader = $("loader");
+  loader.querySelector(".loader-text").textContent = text;
+  loader.classList.toggle("error", error);
+  loader.classList.remove("hidden");
 }
 
-function reloadThisStream() {
-  if (Edrys.role === 'station') {
-    // Re-acquire the camera; updateStream pushes it to every viewer.
-    startStreamWithCamera(currentCameraId);
-  } else {
-    // Rebuild only this viewer's connection.
-    restartClient();
+function hideStatus() {
+  $("loader").classList.add("hidden");
+}
+
+function showStreamInfo(name, quality) {
+  $("stream-name").textContent = `Stream: ${name}`;
+  const info = $("stream-info");
+  let qualityEl = info.querySelector(".stream-quality");
+  if (quality && !qualityEl) {
+    qualityEl = document.createElement("div");
+    qualityEl.className = "stream-quality";
+    info.appendChild(qualityEl);
   }
+  if (quality) qualityEl.textContent = `Quality: ${quality.toUpperCase()}`;
+  info.style.display = "block";
 }
 
 function applyVideoTransform(videoElement, settings) {
@@ -33,175 +70,190 @@ function applyVideoTransform(videoElement, settings) {
   }deg)`;
 }
 
-const QUALITY_CONSTRAINTS = {
-  low:    { width: { ideal: 640 },  height: { ideal: 480 },  frameRate: { ideal: 15 } },
-  medium: { width: { ideal: 1280 }, height: { ideal: 720 },  frameRate: { ideal: 24 } },
-  high:   { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-};
+function stopTracks(stream) {
+  stream?.getTracks().forEach(track => track.stop());
+}
 
-function getVideoConstraints(deviceId, quality) {
-  const qualityConstraints = QUALITY_CONSTRAINTS[quality] || {};
-  return deviceId
-    ? { deviceId: { exact: deviceId }, ...qualityConstraints }
-    : { ...qualityConstraints };
+// ---------------------------------------------------------------------------
+// Station
+
+let currentCameraId = null;
+let startSeq = 0;            // the latest startStreamWithCamera call wins
+let serverPromise = null;    // the station's one stream server
+let cameraRetryTimer = null;
+let cameraLost = false;      // keep retrying until the capture is back
+
+// The camera choice is remembered per stream for this tab.
+function cameraStorageKey() {
+  return `selectedCameraId_${cfg.streamName}`;
+}
+
+function deviceLabel() {
+  if (cfg.video && cfg.audio) return "Camera or microphone";
+  return cfg.video ? "Camera" : "Microphone";
+}
+
+function captureErrorText(error) {
+  switch (error?.name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return `${deviceLabel()} blocked: allow access for this site in the browser settings`;
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return `${deviceLabel()} not found`;
+    case "NotReadableError":
+    case "AbortError":
+      return `${deviceLabel()} is in use by another program`;
+    default:
+      return `Error connecting to ${deviceLabel().toLowerCase()}`;
+  }
+}
+
+function getVideoConstraints(deviceId) {
+  const quality = QUALITY_CONSTRAINTS[cfg.streamQuality] || {};
+  return deviceId ? { deviceId: { exact: deviceId }, ...quality } : { ...quality };
 }
 
 async function listCameras() {
-  if (isListingCameras) return;
-  isListingCameras = true;
+  const cameraSelect = $("camera-select");
+  cameraSelect.innerHTML = "";
+  cameraSelect.style.display = "none";
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cameras = devices.filter(device => device.kind === "videoinput");
+
+  cameras.forEach((device, index) => {
+    const option = document.createElement("option");
+    option.value = device.deviceId;
+    option.text = device.label || `Camera ${index + 1}`;
+    cameraSelect.appendChild(option);
+  });
+
+  if (cameras.length > 1) {
+    cameraSelect.style.display = "inline-block";
+  }
+
+  const stored = sessionStorage.getItem(cameraStorageKey());
+  if (stored && cameras.some(device => device.deviceId === stored)) {
+    currentCameraId = stored;
+    cameraSelect.value = stored;
+  } else {
+    sessionStorage.removeItem(cameraStorageKey());
+  }
+}
+
+// After a lost camera: try again until the capture is back.
+function retryCameraLater() {
+  clearTimeout(cameraRetryTimer);
+  cameraRetryTimer = setTimeout(() => startStreamWithCamera(currentCameraId), CAMERA_RETRY_MS);
+}
+
+function watchForLostTracks(stream, seq) {
+  stream.getTracks().forEach(track => track.addEventListener("ended", () => {
+    if (seq !== startSeq) return; // already replaced
+    cameraLost = true;
+    showStatus(`${deviceLabel()} disconnected, retrying…`, { error: true });
+    retryCameraLater();
+  }, { once: true }));
+}
+
+// Capture the camera and send it. Calls may overlap (camera switch, ⟳, retry):
+// only the latest one shows and sends its capture, and there is only ever one
+// stream server, because its peer ID can't be reclaimed right away.
+async function startStreamWithCamera(deviceId = currentCameraId) {
+  const seq = ++startSeq;
+  clearTimeout(cameraRetryTimer);
+
+  if (deviceId && deviceId !== currentCameraId) {
+    currentCameraId = deviceId;
+    sessionStorage.setItem(cameraStorageKey(), deviceId);
+  }
+
+  if (!cfg.video && !cfg.audio) {
+    showStatus("Both video and audio are disabled in station config", { error: true });
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showStatus("This browser gives no camera access here (HTTPS needed)", { error: true });
+    return;
+  }
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: cfg.video ? getVideoConstraints(deviceId) : false,
+      audio: cfg.audio,
+    });
+  } catch (error) {
+    console.error(error);
+    if (seq !== startSeq) return;
+    showStatus(captureErrorText(error), { error: true });
+    if (cameraLost) retryCameraLater();
+    return;
+  }
+
+  if (seq !== startSeq) {
+    stopTracks(stream); // a later call took over
+    return;
+  }
+
+  const videoElement = $("video");
+  stopTracks(videoElement.srcObject); // release the previous capture
+  videoElement.muted = true; // station preview: never play our own microphone
+  videoElement.srcObject = stream;
+  cameraLost = false;
+  watchForLostTracks(stream, seq);
+  hideStatus();
 
   try {
-    const cameraSelect = document.getElementById("camera-select");
-    cameraSelect.innerHTML = '';
-    cameraSelect.style.display = 'none';
-
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      return;
-    }
-
-    currentCameraId = sessionStorage.getItem(getCameraStorageKey());
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === "videoinput");
-
-    videoDevices.forEach((device, index) => {
-      const option = document.createElement("option");
-      option.value = device.deviceId;
-      option.text = device.label || `Camera ${index + 1}`;
-      cameraSelect.appendChild(option);
-    });
-
-    if (videoDevices.length > 1) {
-      cameraSelect.style.display = 'inline-block';
-    }
-
-    if (currentCameraId) {
-      const deviceExists = videoDevices.some(device => device.deviceId === currentCameraId);
-      if (deviceExists) {
-        cameraSelect.value = currentCameraId;
-      } else {
-        sessionStorage.removeItem(getCameraStorageKey());
-        currentCameraId = null;
-      }
-    }
-  } catch (err) {
-    console.error("Error listing cameras:", err);
-  } finally {
-    isListingCameras = false;
-  }
-}
-
-function startStreamWithCamera(deviceId = null) {
-  const videoElement = document.getElementById("video");
-  const loaderElement = document.getElementById("loader");
-  const streamMethod = Edrys.module.stationConfig?.streamMethod || "webrtc";
-  const websocketUrl = Edrys.module.stationConfig?.websocketUrl || "";
-  const streamName = Edrys.module.stationConfig?.streamName || "Camera 1";
-  const streamQuality = Edrys.module.stationConfig?.streamQuality || "medium";
-  
-  applyVideoTransform(videoElement, Edrys.module.stationConfig);
-
-  const startNewStream = async () => {
-    if (deviceId && currentCameraId !== deviceId) {
-      currentCameraId = deviceId;
-      sessionStorage.setItem(getCameraStorageKey(), deviceId);
-    }
-
-    // Same defaults as the settings form: video on, audio off.
-    const videoOn = Edrys.module.stationConfig?.video !== false;
-    const audioOn = Edrys.module.stationConfig?.audio === true;
-
-    const constraints = {
-      video: videoOn ? getVideoConstraints(deviceId, streamQuality) : false,
-      audio: audioOn,
-    };
-
-    if (!constraints.video && !constraints.audio) {
-      loaderElement.querySelector(".loader-text").textContent =
-        "Both video and audio are disabled in station config";
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-      // Release the previous camera capture before swapping in the new one.
-      const previous = videoElement.srcObject;
-      if (previous && previous !== stream && typeof previous.getTracks === "function") {
-        previous.getTracks().forEach(track => track.stop());
-      }
-
-      videoElement.muted = true; // station preview: never play our own microphone
-      videoElement.srcObject = stream;
-      videoElement.autoplay = true;
-      loaderElement.classList.add("hidden");
-
-      if (currentStream && typeof currentStream.updateStream === "function") {
-        // Update existing stream server with new stream
-        currentStream.updateStream(stream);
-      } else {
-        // Create new stream server
-        currentStream = await Edrys.sendStream(stream, {
-          method: streamMethod,
-          websocketUrl: websocketUrl,
-          streamName: streamName,
-        });
-      }
-
-      // stream-info overlay
-      const streamInfo = document.getElementById("stream-info");
-      document.getElementById("stream-name").textContent = `Stream: ${streamName}`;
-      let qualityEl = streamInfo.querySelector(".stream-quality");
-      if (!qualityEl) {
-        qualityEl = document.createElement("div");
-        qualityEl.className = "stream-quality";
-        streamInfo.appendChild(qualityEl);
-      }
-      qualityEl.textContent = `Quality: ${streamQuality.toUpperCase()}`;
-      streamInfo.style.display = 'block';
-
-    } catch (error) {
-      console.error(error);
-      loaderElement.querySelector(".loader-text").textContent = "Error connecting to camera";
-    }
-  };
-
-  // Never stop the server: its peer ID can't be reclaimed right away.
-  startNewStream();
-}
-
-function startServer() {
-  if (navigator.mediaDevices?.getUserMedia) {
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(tempStream => {
-        tempStream.getTracks().forEach(track => track.stop());
-        
-        listCameras().then(() => {
-          const cameraSelect = document.getElementById("camera-select");
-          const startWithDevice = currentCameraId || 
-            (cameraSelect.options.length > 0 ? cameraSelect.options[0].value : null);
-          startStreamWithCamera(startWithDevice);
-        });
-      })
-      .catch(err => {
-        startStreamWithCamera();
+    if (serverPromise) {
+      const server = await serverPromise;
+      if (seq === startSeq) server.updateStream(stream);
+    } else {
+      serverPromise = Edrys.sendStream(stream, {
+        method: cfg.streamMethod,
+        websocketUrl: cfg.websocketUrl,
+        streamName: cfg.streamName,
       });
-  } else {
-    startStreamWithCamera();
+      await serverPromise;
+    }
+  } catch (error) {
+    console.error(error);
+    serverPromise = null; // the next start tries again
+    if (seq === startSeq) showStatus("Could not start the stream. Press ⟳ to retry.", { error: true });
+    return;
   }
-  
-  const cameraSelect = document.getElementById('camera-select');
-  if (!cameraSelect.hasAttribute('data-listener-added')) {
-    cameraSelect.addEventListener('change', function() {
-      if (this.value) {
-        startStreamWithCamera(this.value);
-      }
-    });
-    cameraSelect.setAttribute('data-listener-added', 'true');
-  }
+
+  showStreamInfo(cfg.streamName, cfg.streamQuality);
 }
 
-let clientStarted = false;
-let clientGiveUpTimeout = null;
+async function startServer() {
+  applyVideoTransform($("video"), cfg);
+
+  const cameraSelect = $("camera-select");
+  cameraSelect.addEventListener("change", () => {
+    if (cameraSelect.value) startStreamWithCamera(cameraSelect.value);
+  });
+
+  // Camera ids and labels are only listed once camera access is granted.
+  if (cfg.video && navigator.mediaDevices?.getUserMedia) {
+    try {
+      stopTracks(await navigator.mediaDevices.getUserMedia({ video: true }));
+      await listCameras();
+    } catch (error) {
+      console.error(error); // startStreamWithCamera reports it
+    }
+  }
+
+  startStreamWithCamera(currentCameraId || cameraSelect.options[0]?.value || null);
+}
+
+// ---------------------------------------------------------------------------
+// Viewer (teacher or student)
+
+let clientSeq = 0;           // the latest startClient call wins
+let clientPromise = null;    // this viewer's stream client
+let clientGiveUpTimer = null;
 let clientAutoRetried = false;
 
 // Tear down this viewer's own connection and reconnect. The client peer ID is
@@ -209,74 +261,84 @@ let clientAutoRetried = false;
 function restartClient() {
   // Detach first: stopping the client ends its tracks, and Chrome then fires
   // loadeddata on the ended stream, which would count as a first frame.
-  const videoElement = document.getElementById("video");
+  const videoElement = $("video");
   videoElement.onloadeddata = null;
   videoElement.srcObject = null;
 
-  if (currentStream?.stop) currentStream.stop();
-  currentStream = null;
-  clientStarted = false;
+  // The old client may still be connecting: stop it once it is there.
+  clientPromise?.then(client => client?.stop());
 
-  const loaderElement = document.getElementById("loader");
-  loaderElement.querySelector(".loader-text").textContent =
-    "Reconnecting to stream...";
-  loaderElement.classList.remove("hidden");
-
+  showStatus("Reconnecting to stream...");
   startClient();
 }
 
 function startClient() {
-  // Guard against double-init (module may mount more than once).
-  if (clientStarted) return;
-  clientStarted = true;
-
-  const videoElement = document.getElementById("video");
-  const loaderElement = document.getElementById("loader");
-
-  const streamMethod = Edrys.module.stationConfig?.streamMethod || "webrtc";
-  const websocketUrl = Edrys.module.stationConfig?.websocketUrl || "";
+  const seq = ++clientSeq;
+  const videoElement = $("video");
 
   // Give-up timer: if no frame arrives within a generous window, reconnect once
   // by ourselves, then ask the user. onStream only means the tracks are known;
   // media may still never flow (e.g. ICE fails after signalling).
-  clearTimeout(clientGiveUpTimeout);
-  const giveUpTimeout = setTimeout(() => {
+  clearTimeout(clientGiveUpTimer);
+  clientGiveUpTimer = setTimeout(() => {
     if (!clientAutoRetried) {
       clientAutoRetried = true;
       restartClient();
       return;
     }
-    loaderElement.querySelector(".loader-text").textContent =
-      "No stream available yet. Press ⟳ to retry.";
-  }, 20000);
-  clientGiveUpTimeout = giveUpTimeout;
+    showStatus("No stream available yet. Press ⟳ to retry.", { error: true });
+  }, CLIENT_GIVE_UP_MS);
 
-  Edrys.onStream(
+  clientPromise = Edrys.onStream(
     (stream, settings, metadata) => {
+      if (seq !== clientSeq) return;
       videoElement.srcObject = stream;
       applyVideoTransform(videoElement, settings);
 
       videoElement.onloadeddata = () => {
-        clearTimeout(giveUpTimeout);
+        clearTimeout(clientGiveUpTimer);
         clientAutoRetried = false;
-        loaderElement.classList.add("hidden");
+        hideStatus();
       };
 
-      if (metadata?.streamName) {
-        document.getElementById("stream-name").textContent = `Stream: ${metadata.streamName}`;
-        document.getElementById("stream-info").style.display = 'block';
-      }
+      if (metadata?.streamName) showStreamInfo(metadata.streamName);
     },
     {
-      method: streamMethod,
-      websocketUrl: websocketUrl,
+      method: cfg.streamMethod,
+      websocketUrl: cfg.websocketUrl,
     }
-  ).then(streamClient => {
-    currentStream = streamClient;
+  ).catch(error => {
+    console.error(error);
+    if (seq === clientSeq) {
+      clearTimeout(clientGiveUpTimer);
+      showStatus("Could not connect to the stream. Press ⟳ to retry.", { error: true });
+    }
+    return null;
   });
 }
 
+// ---------------------------------------------------------------------------
+
+function reloadThisStream() {
+  if (Edrys.role === "station") {
+    // Re-acquire the camera; updateStream pushes it to every viewer.
+    startStreamWithCamera(currentCameraId);
+  } else {
+    // Rebuild only this viewer's connection.
+    restartClient();
+  }
+}
+
+let started = false;
+
 Edrys.onReady(() => {
+  // Guard against double-init (module may mount more than once).
+  if (started) return;
+  started = true;
+
+  cfg = readConfig();
+  $("reload-button").addEventListener("click", reloadThisStream);
+
   if (Edrys.role === "station") {
     startServer();
   } else {

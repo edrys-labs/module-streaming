@@ -24,7 +24,6 @@ video {
   width: auto;
   height: auto;
   object-fit: contain;
-  transform: scale(1, 1);
 }
 
 button {
@@ -74,6 +73,11 @@ button:hover {
 
 .loader-text {
   font-size: 18px;
+}
+
+/* an error needs action, nothing is loading */
+.loader-container.error .loader {
+  display: none;
 }
 
 @keyframes spin {
