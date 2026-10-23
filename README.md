@@ -6,9 +6,7 @@ Import the module via:
 
 `https://edrys-labs.github.io/module-streaming/index.html`
 
-<!--
 ![The station's view: status badge, reconnect button, camera picker, and the stream name and quality](screenshot.png)
--->
 
 ## Roles
 
